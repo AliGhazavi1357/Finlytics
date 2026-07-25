@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ app_name }} | ورود</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="auth-shell">
+    <section class="auth-visual">
+      <div>
+        <h1 class="brand-mark">{{ app_name }}<span>.</span></h1>
+        <p>
+          سامانه تحلیل و گزارش امور مالی با الهام از تجربه محصول‌های نصف جهان —
+          ورودی و خروجی، سودآوری، حقوق پرسنل و گزارش صوتی روزانه برای مدیرعامل.
+        </p>
+      </div>
+    </section>
+    <section class="auth-panel">
+      <form class="auth-card" id="loginForm">
+        <h1>ورود به پنل</h1>
+        <p class="sub">برای مشاهده داشبورد، نمودارها و تولید ویس گزارش روزانه وارد شوید.</p>
+        <div id="errorBox" class="error-box hidden"></div>
+        <div class="field">
+          <label for="phone">شماره موبایل</label>
+          <input id="phone" name="phone" inputmode="tel" value="۰۹۱۳۱۱۷۶۵۸۳" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="password">رمز عبور</label>
+          <input id="password" name="password" type="password" value="۱۲۳۴۵۶۷۸۹" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-block" type="submit" id="loginBtn">ورود</button>
+        <p class="hint">کاربر آزمایشی: ۰۹۱۳۱۱۷۶۵۸۳ / ۱۲۳۴۵۶۷۸۹</p>
+      </form>
+    </section>
+  </div>
+  <script>
+    const form = document.getElementById('loginForm');
+    const errorBox = document.getElementById('errorBox');
+    const loginBtn = document.getElementById('loginBtn');
+
+    function toEnDigits(value) {
+      return String(value ?? '')
+        .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+        .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    }
+
+    if (localStorage.getItem('finlytics_token')) {
+      location.href = '/app';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.classList.add('hidden');
+      loginBtn.disabled = true;
+      try {
+        const phone = toEnDigits(document.getElementById('phone').value).trim().replace(/[\s-]/g, '');
+        const password = toEnDigits(document.getElementById('password').value);
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'ورود ناموفق بود');
+        localStorage.setItem('finlytics_token', data.access_token);
+        localStorage.setItem('finlytics_user', JSON.stringify({
+          full_name: data.full_name,
+          phone: data.phone
+        }));
+        document.cookie = `access_token=${data.access_token}; path=/; max-age=${60*60*24*7}; SameSite=Lax`;
+        location.href = '/app';
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.remove('hidden');
+      } finally {
+        loginBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

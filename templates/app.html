@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>{{ app_name }} | پنل مالی</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css?v=4" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="overlay" id="overlay"></div>
+  <button class="mobile-toggle" id="menuBtn" aria-label="منو">☰</button>
+
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-brand">{{ app_name }}<span>.</span></div>
+      <nav class="nav-list">
+        <a class="nav-item active" data-page="dashboard" href="#dashboard">داشبورد</a>
+        <a class="nav-item" data-page="reports" href="#reports">گزارش‌ها</a>
+        <a class="nav-item" data-page="transactions" href="#transactions">ورودی و خروجی</a>
+        <a class="nav-item" data-page="catalog" href="#catalog">محصولات و فروش</a>
+        <a class="nav-item" data-page="personnel" href="#personnel">پرسنل و حقوق</a>
+        <a class="nav-item" data-page="excel" href="#excel">بارگذاری اکسل</a>
+        <a class="nav-item" data-page="voice" href="#voice">ویس گزارش مدیرعامل</a>
+        <a class="nav-item" data-page="ai" href="#ai">پرسش‌وپاسخ هوش مصنوعی</a>
+      </nav>
+      <div class="side-foot">
+        <div id="userName">—</div>
+        <div id="userPhone">—</div>
+        <div id="limitsHint" class="hint" style="margin-top:8px"></div>
+        <button class="btn btn-ghost" style="margin-top:12px;width:100%" id="logoutBtn">خروج</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h2 id="pageTitle">داشبورد مالی</h2>
+          <div class="meta" id="pageMeta">وضعیت عملکردی سازمان</div>
+        </div>
+        <div class="period-tabs" id="periodTabs">
+          <button class="chip" data-period="daily">روزانه</button>
+          <button class="chip active" data-period="monthly">ماهانه</button>
+          <button class="chip" data-period="yearly">سال مالی</button>
+        </div>
+      </div>
+
+      <section id="view-dashboard">
+        <div class="forecast-box" id="dashForecast">پیش‌بینی فردا پس از بارگذاری نمایش داده می‌شود.</div>
+        <div class="cards" id="summaryCards"></div>
+        <div class="grid-2">
+          <div class="panel">
+            <h3>روند درآمد، هزینه و سود</h3>
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+          <div class="panel">
+            <h3>ترکیب هزینه‌ها</h3>
+            <div class="chart-wrap doughnut"><canvas id="expenseChart"></canvas></div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <h3>محصولات و خدمات پرفروش</h3>
+            <div class="table-wrap desktop-only">
+              <table>
+                <thead>
+                  <tr><th>عنوان</th><th>مقدار</th><th>درآمد</th><th>سود</th></tr>
+                </thead>
+                <tbody id="topProductsBody"></tbody>
+              </table>
+            </div>
+            <div class="mobile-cards" id="topProductsCards"></div>
+          </div>
+          <div class="panel">
+            <h3>آخرین تراکنش‌ها</h3>
+            <div class="table-wrap desktop-only">
+              <table>
+                <thead>
+                  <tr><th>تاریخ</th><th>نوع</th><th>عنوان</th><th>مبلغ</th></tr>
+                </thead>
+                <tbody id="recentBody"></tbody>
+              </table>
+            </div>
+            <div class="mobile-cards" id="recentCards"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-reports" class="hidden">
+        <div class="panel">
+          <h3 id="reportLabel">گزارش</h3>
+          <p id="reportNarrative" style="line-height:2;color:var(--muted);overflow-wrap:anywhere"></p>
+          <div class="forecast-box" id="reportForecast"></div>
+          <div class="cards" id="reportCards" style="margin-top:16px"></div>
+          <div class="chart-wrap" style="margin-top:12px"><canvas id="reportChart"></canvas></div>
+        </div>
+      </section>
+
+      <section id="view-transactions" class="hidden">
+        <div class="toolbar">
+          <button class="chip active" data-dir="all">همه</button>
+          <button class="chip" data-dir="income">ورودی</button>
+          <button class="chip" data-dir="expense">خروجی</button>
+          <button class="btn btn-sm" id="addTxnBtn">افزودن تراکنش</button>
+        </div>
+        <div class="panel">
+          <div class="table-wrap desktop-only">
+            <table>
+              <thead>
+                <tr><th>تاریخ</th><th>نوع</th><th>دسته</th><th>عنوان</th><th>منبع</th><th>مبلغ</th><th>عملیات</th></tr>
+              </thead>
+              <tbody id="txBody"></tbody>
+            </table>
+          </div>
+          <div class="mobile-cards" id="txCards"></div>
+        </div>
+      </section>
+
+      <section id="view-catalog" class="hidden">
+        <div class="panel" style="margin-bottom:14px">
+          <div class="toolbar">
+            <h3 style="margin:0;flex:1">محصولات و خدمات</h3>
+            <button class="btn btn-sm" id="addProductBtn">افزودن آیتم</button>
+          </div>
+          <div class="table-wrap desktop-only">
+            <table>
+              <thead>
+                <tr><th>کد</th><th>نام</th><th>نوع</th><th>قیمت</th><th>بهای تمام‌شده</th><th>وضعیت</th><th>عملیات</th></tr>
+              </thead>
+              <tbody id="productBody"></tbody>
+            </table>
+          </div>
+          <div class="mobile-cards" id="productCards"></div>
+        </div>
+        <div class="panel">
+          <div class="toolbar">
+            <h3 style="margin:0;flex:1">ثبت فروش</h3>
+            <button class="btn btn-sm btn-accent" id="addSaleBtn">افزودن فروش</button>
+          </div>
+          <div class="table-wrap desktop-only">
+            <table>
+              <thead>
+                <tr><th>تاریخ</th><th>آیتم</th><th>مقدار</th><th>درآمد</th><th>سود</th><th>عملیات</th></tr>
+              </thead>
+              <tbody id="saleBody"></tbody>
+            </table>
+          </div>
+          <div class="mobile-cards" id="saleCards"></div>
+        </div>
+      </section>
+
+      <section id="view-personnel" class="hidden">
+        <div class="hint" id="salaryCapHint" style="margin:0 0 12px"></div>
+        <div class="panel">
+          <div class="table-wrap desktop-only">
+            <table>
+              <thead>
+                <tr><th>کد</th><th>نام</th><th>سمت</th><th>دپارتمان</th><th>حقوق ماهانه</th><th>عملیات</th></tr>
+              </thead>
+              <tbody id="empBody"></tbody>
+            </table>
+          </div>
+          <div class="mobile-cards" id="empCards"></div>
+        </div>
+      </section>
+
+      <section id="view-excel" class="hidden">
+        <div class="panel">
+          <h3>بارگذاری فایل اکسل</h3>
+          <p style="color:var(--muted);line-height:1.9;margin-top:0">
+            ابتدا قالب پیشنهادی را دانلود کنید، سپس فایل تکمیل‌شده را بارگذاری نمایید.
+          </p>
+          <div class="toolbar">
+            <button class="btn" id="downloadTemplateBtn">دانلود قالب اکسل</button>
+            <label class="btn btn-ghost" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+              انتخاب فایل
+              <input type="file" id="excelFile" accept=".xlsx,.xlsm" hidden />
+            </label>
+            <button class="btn btn-accent" id="uploadExcelBtn">آپلود و واردسازی</button>
+          </div>
+          <div id="importResult" class="hint"></div>
+        </div>
+      </section>
+
+      <section id="view-voice" class="hidden">
+        <div class="panel voice-box">
+          <h3>گزارش صوتی روزانه برای مدیرعامل</h3>
+          <p style="color:var(--muted);line-height:1.9;margin:0">
+            متن فارسی حدود یک دقیقه به‌صورت خودکار از داده‌های روز ساخته می‌شود و پیش‌بینی فردا را هم شامل می‌شود.
+          </p>
+          <div class="toolbar">
+            <button class="btn btn-accent" id="generateVoiceBtn">تولید ویس گزارش امروز</button>
+          </div>
+          <div id="voiceMeta" class="hint"></div>
+          <audio id="voiceAudio" controls style="width:100%;max-width:100%"></audio>
+          <div class="voice-script" id="voiceScript">متن گزارش اینجا نمایش داده می‌شود.</div>
+        </div>
+      </section>
+
+      <section id="view-ai" class="hidden">
+        <div class="panel ai-box">
+          <div class="toolbar" style="justify-content:space-between">
+            <h3 style="margin:0">دستیار مالی هوشمند</h3>
+            <div class="quota-pill" id="aiQuotaPill">سقف روزانه: —</div>
+          </div>
+          <p style="color:var(--muted);line-height:1.9;margin:0">
+            چند سؤال محدود در روز درباره وضعیت مالی بپرسید. پاسخ‌ها بر اساس داده‌های Finlytics ساخته می‌شوند.
+          </p>
+          <div class="suggest-row" id="aiSuggestions"></div>
+          <form class="ai-form" id="aiAskForm">
+            <input id="aiQuestionInput" maxlength="500" placeholder="مثلاً: سود ماه جاری چقدر است؟" required />
+            <button class="btn btn-accent" type="submit" id="aiAskBtn">بپرس</button>
+          </form>
+          <div id="aiError" class="error-box hidden"></div>
+          <div class="chat-thread" id="aiThread"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modalRoot" class="hidden"></div>
+  <script src="/static/js/app.js?v=4"></script>
+</body>
+</html>
