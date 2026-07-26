@@ -395,6 +395,14 @@ th { color: var(--muted); font-weight: 600; }
   color: #d9ecec;
 }
 .forecast-box strong { color: var(--accent); }
+.forecast-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin: 10px 0 8px;
+}
+.forecast-metrics span { color: var(--muted); }
+.forecast-metrics b { color: var(--text); font-weight: 700; }
 .voice-box { display: grid; gap: 14px; }
 .ai-box { display: grid; gap: 14px; }
 .quota-pill {

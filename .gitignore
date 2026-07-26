@@ -9,3 +9,5 @@ logs/
 *.mp3
 .idea/
 .vscode/
+dist/
+python_env/

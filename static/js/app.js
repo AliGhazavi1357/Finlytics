@@ -302,14 +302,29 @@ function renderCards(targetId, cards) {
     .join('');
 }
 
-function renderForecast(elId, tomorrow) {
+function renderForecast(elId, forecast) {
   const el = document.getElementById(elId);
   if (!el) return;
-  if (!tomorrow) {
+  const f = forecast;
+  if (!f) {
     el.textContent = '';
     return;
   }
-  el.innerHTML = `<strong>پیش‌بینی فردا (${toJalali(tomorrow.forecast_date)})</strong><br>${tomorrow.narrative}<br><span style="color:var(--muted);font-size:.85rem">${tomorrow.confidence_note || ''}</span>`;
+  const title = f.target_label || 'دوره بعد';
+  const range =
+    f.forecast_start && f.forecast_end && f.forecast_start !== f.forecast_end
+      ? `${toJalali(f.forecast_start)} تا ${toJalali(f.forecast_end)}`
+      : toJalali(f.forecast_date);
+  el.innerHTML = `
+    <strong>پیش‌بینی ${title} (${range})</strong>
+    <div class="forecast-metrics">
+      <span>درآمد: <b>${money(f.predicted_income)}</b></span>
+      <span>هزینه: <b>${money(f.predicted_expense)}</b></span>
+      <span>سود: <b>${money(f.predicted_profit)}</b></span>
+    </div>
+    <div>${toFaDigits(f.narrative || '')}</div>
+    <span style="color:var(--muted);font-size:.85rem">${toFaDigits(f.confidence_note || '')}</span>
+  `;
 }
 
 function upsertChart(ref, canvasId, config) {
@@ -384,7 +399,7 @@ function doughnutOptions() {
 async function loadDashboard() {
   const data = await api(`/api/dashboard?period=${state.period}`);
   document.getElementById('pageMeta').textContent = data.period;
-  renderForecast('dashForecast', data.tomorrow);
+  renderForecast('dashForecast', data.forecast || data.tomorrow);
   renderCards('summaryCards', data.cards);
 
   upsertChart('trendChart', 'trendChart', {
@@ -464,9 +479,10 @@ async function loadDashboard() {
 async function loadReports() {
   const data = await api(`/api/reports/${state.period}`);
   document.getElementById('reportLabel').textContent = data.label;
-  document.getElementById('reportNarrative').textContent = data.narrative;
-  renderForecast('reportForecast', data.tomorrow);
-  renderCards('reportCards', [
+  document.getElementById('reportNarrative').textContent = toFaDigits(data.narrative);
+  const f = data.forecast || data.tomorrow;
+  renderForecast('reportForecast', f);
+  const cards = [
     { label: 'درآمد', value: data.total_income },
     { label: 'هزینه', value: data.total_expense },
     { label: 'سود خالص', value: data.net_profit },
@@ -475,7 +491,16 @@ async function loadReports() {
     { label: 'هزینه‌های عملیاتی', value: data.opex_cost },
     { label: 'میانگین روزانه درآمد', value: data.daily_avg_income },
     { label: 'هزینه حقوق', value: data.payroll_cost },
-  ]);
+  ];
+  if (f) {
+    const t = f.target_label || 'دوره بعد';
+    cards.push(
+      { label: `پیش‌بینی درآمد ${t}`, value: f.predicted_income },
+      { label: `پیش‌بینی هزینه ${t}`, value: f.predicted_expense },
+      { label: `پیش‌بینی سود ${t}`, value: f.predicted_profit }
+    );
+  }
+  renderCards('reportCards', cards);
   upsertChart('reportChart', 'reportChart', {
     type: 'bar',
     data: {
@@ -842,8 +867,8 @@ function renderAiThread(rows) {
   thread.innerHTML = ordered
     .map(
       (r) => `
-      <div class="chat-bubble user"><div class="who">شما</div>${escapeHtml(r.question)}</div>
-      <div class="chat-bubble bot"><div class="who">دستیار (${r.mode === 'openai' ? 'AI' : 'خودکار'})</div>${escapeHtml(r.answer)}</div>
+      <div class="chat-bubble user"><div class="who">شما</div>${escapeHtml(toFaDigits(r.question))}</div>
+      <div class="chat-bubble bot"><div class="who">دستیار (${r.mode === 'openai' ? 'AI' : 'خودکار'})</div>${escapeHtml(toFaDigits(r.answer))}</div>
     `
     )
     .join('');
@@ -918,7 +943,7 @@ async function submitAiQuestion(question) {
 function bindUi() {
   const user = JSON.parse(localStorage.getItem('finlytics_user') || '{}');
   document.getElementById('userName').textContent = user.full_name || 'کاربر';
-  document.getElementById('userPhone').textContent = user.phone || '';
+  document.getElementById('userPhone').textContent = toFaDigits(user.phone || '');
 
   document.querySelectorAll('.nav-item').forEach((el) => {
     el.addEventListener('click', (e) => {

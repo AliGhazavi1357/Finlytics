@@ -10,14 +10,14 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import AiQuestion, Employee, ProductService, Sale, User
 from app.numbers import format_fa_money, format_fa_pct, to_fa_digits
-from app.services.reports import build_period_report
+from app.services.reports import build_period_report, predict_for_period
 
 SUGGESTED_QUESTIONS = [
     "سود امروز چقدر است؟",
     "وضعیت مالی ماه جاری چگونه است؟",
     "بیشترین هزینه مربوط به چیست؟",
-    "پیش‌بینی فردا چیست؟",
-    "هزینه حقوق این ماه چقدر است؟",
+    "پیش‌بینی فردا برای درآمد و هزینه چیست؟",
+    "پیش‌بینی ماه آینده چیست؟",
 ]
 
 
@@ -78,13 +78,14 @@ def build_finance_context(db: Session) -> str:
     top_line = "، ".join(f"{n} ({format_fa_money(float(r or 0))})" for n, r in top) or "بدون فروش"
 
     tomorrow_line = ""
-    if monthly.tomorrow:
-        t = monthly.tomorrow
-        tomorrow_line = (
-            f"پیش‌بینی فردا ({t.forecast_date}): درآمد {format_fa_money(t.predicted_income)}، "
-            f"هزینه {format_fa_money(t.predicted_expense)}، سود {format_fa_money(t.predicted_profit)}. "
-            f"{t.narrative}"
-        )
+    daily_f = predict_for_period(db, "daily", today)
+    monthly_f = predict_for_period(db, "monthly", today)
+    yearly_f = predict_for_period(db, "yearly", today)
+    tomorrow_line = (
+        f"{daily_f.narrative} "
+        f"{monthly_f.narrative} "
+        f"{yearly_f.narrative}"
+    )
 
     return (
         f"تاریخ امروز: {today.isoformat()}\n"
@@ -124,15 +125,19 @@ def _rules_answer(question: str, db: Session) -> str:
             f"این رقم از مجموع پرداخت‌های حقوق ثبت‌شده در بازه ماه محاسبه شده است."
         )
 
-    if any(k in q for k in ("پیش‌بینی", "فردا", "فردای")):
-        if monthly.tomorrow:
-            t = monthly.tomorrow
-            return (
-                f"پیش‌بینی فردا ({t.forecast_date}): درآمد حدود {format_fa_money(t.predicted_income)}، "
-                f"هزینه حدود {format_fa_money(t.predicted_expense)} و سود تقریبی {format_fa_money(t.predicted_profit)}. "
-                f"{t.narrative}"
-            )
-        return "در حال حاضر پیش‌بینی فردا در دسترس نیست."
+    if any(k in q for k in ("پیش‌بینی", "فردا", "فردای", "ماه آینده", "سال آینده")):
+        if any(k in q for k in ("سال", "سالانه", "سال آینده")):
+            t = predict_for_period(db, "yearly", today)
+        elif any(k in q for k in ("ماه", "ماهانه", "ماه آینده")):
+            t = predict_for_period(db, "monthly", today)
+        else:
+            t = predict_for_period(db, "daily", today)
+        return (
+            f"{t.narrative} "
+            f"جزئیات: درآمد {format_fa_money(t.predicted_income)}، "
+            f"هزینه {format_fa_money(t.predicted_expense)}، "
+            f"سود/زیان {format_fa_money(t.predicted_profit)}."
+        )
 
     if any(k in q for k in ("هزینه", "خرج")) and any(k in q for k in ("بیشتر", "بیشترین", "اصلی", "چیست")):
         from app.labels import localize_category
@@ -238,15 +243,20 @@ async def ask_finance_question(db: Session, user: User, question: str) -> AiQues
     if used >= limit:
         raise HTTPException(
             status_code=429,
-            detail=f"سقف پرسش روزانه ({limit} سؤال) به پایان رسیده است. فردا دوباره تلاش کنید.",
+            detail=(
+                f"سقف پرسش روزانه ({to_fa_digits(limit)} سؤال) به پایان رسیده است. "
+                "فردا دوباره تلاش کنید."
+            ),
         )
 
     context = build_finance_context(db)
     ai_text = await _openai_answer(question, context)
     if ai_text:
-        answer, mode = ai_text, "openai"
+        answer, mode = to_fa_digits(ai_text), "openai"
     else:
         answer, mode = _rules_answer(question, db), "rules"
+        # rules answers already use format_fa_*; ensure any leftover Latin digits convert
+        answer = to_fa_digits(answer)
 
     row = AiQuestion(user_id=user.id, question=question, answer=answer, mode=mode)
     db.add(row)

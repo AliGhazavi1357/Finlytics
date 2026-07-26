@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- نسخه موقت استاتیک تا تست هاست -->
+<!--
+  تست استاتیک: این فایل را موقتاً با نام web.config آپلود کنید.
+  اگر status.html باز شد، مشکل از HttpPlatform/Python است نه از دامنه.
+-->
 <configuration>
   <system.webServer>
     <httpErrors errorMode="Detailed" />
-    <defaultDocument enabled="true">
+    <defaultDocument>
       <files>
         <clear />
-        <add value="index.html" />
         <add value="status.html" />
-        <add value="default.htm" />
       </files>
     </defaultDocument>
     <handlers>

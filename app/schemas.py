@@ -60,7 +60,13 @@ class CategorySlice(BaseModel):
 
 
 class TomorrowForecast(BaseModel):
+    """Period-aware forecast (daily/monthly/yearly). Name kept for API compatibility."""
+
+    period_type: str = "daily"
+    target_label: str = "فردا"
     forecast_date: date
+    forecast_start: Optional[date] = None
+    forecast_end: Optional[date] = None
     predicted_income: float
     predicted_expense: float
     predicted_profit: float
@@ -78,6 +84,7 @@ class DashboardResponse(BaseModel):
     top_products: list[dict]
     recent_transactions: list[dict]
     tomorrow: Optional[TomorrowForecast] = None
+    forecast: Optional[TomorrowForecast] = None
 
 
 class TransactionCreate(BaseModel):
@@ -223,6 +230,7 @@ class ReportPeriodResponse(BaseModel):
     narrative: str
     trend: list[ChartPoint]
     tomorrow: Optional[TomorrowForecast] = None
+    forecast: Optional[TomorrowForecast] = None
 
 
 class VoiceReportOut(BaseModel):

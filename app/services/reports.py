@@ -191,55 +191,161 @@ def pct_change(current: float, previous: float) -> float | None:
     return round(((current - previous) / abs(previous)) * 100, 1)
 
 
-def predict_tomorrow(db: Session, ref: date | None = None) -> TomorrowForecast:
-    """Weighted average of last 7 days (recent days count more)."""
-    ref = ref or date.today()
-    tomorrow = ref + timedelta(days=1)
-    incomes: list[float] = []
-    expenses: list[float] = []
-    weights: list[float] = []
-    for i in range(7):
-        day = ref - timedelta(days=i)
-        incomes.append(_sum_tx(db, day, day, "income"))
-        expenses.append(_sum_tx(db, day, day, "expense"))
-        weights.append(7 - i)
+def _shift_month(d: date, months: int) -> date:
+    m0 = d.month - 1 + months
+    y = d.year + m0 // 12
+    m = m0 % 12 + 1
+    return date(y, m, min(d.day, monthrange(y, m)[1]))
 
-    w_sum = sum(weights) or 1
+
+def _month_bounds(d: date) -> tuple[date, date]:
+    start = d.replace(day=1)
+    end = d.replace(day=monthrange(d.year, d.month)[1])
+    return start, end
+
+
+def predict_for_period(
+    db: Session,
+    period: PeriodType,
+    ref: date | None = None,
+) -> TomorrowForecast:
+    """Forecast next day / next month / next year based on selected period."""
+    ref = ref or date.today()
+
+    if period == "daily":
+        incomes: list[float] = []
+        expenses: list[float] = []
+        weights: list[float] = []
+        for i in range(7):
+            day = ref - timedelta(days=i)
+            incomes.append(_sum_tx(db, day, day, "income"))
+            expenses.append(_sum_tx(db, day, day, "expense"))
+            weights.append(7 - i)
+        w_sum = sum(weights) or 1
+        pred_income = round(sum(v * w for v, w in zip(incomes, weights)) / w_sum, 0)
+        pred_expense = round(sum(v * w for v, w in zip(expenses, weights)) / w_sum, 0)
+        recent_avg = sum(incomes[:3]) / 3 if incomes else 0
+        prior_avg = sum(incomes[3:6]) / 3 if len(incomes) >= 6 else recent_avg
+        if prior_avg > 0:
+            trend_factor = max(0.85, min(1.15, recent_avg / prior_avg))
+            pred_income = round(pred_income * trend_factor, 0)
+        pred_profit = pred_income - pred_expense
+        target = ref + timedelta(days=1)
+        label = "فردا"
+        narrative = (
+            f"پیش‌بینی {label} ({format_jalali(target)}): "
+            f"درآمد حدود {format_fa_money(pred_income)}، "
+            f"هزینه حدود {format_fa_money(pred_expense)} و "
+            f"{'سود خالص تقریبی' if pred_profit >= 0 else 'زیان تقریبی'} "
+            f"{format_fa_money(abs(pred_profit))}."
+        )
+        return TomorrowForecast(
+            period_type="daily",
+            target_label=label,
+            forecast_date=target,
+            forecast_start=target,
+            forecast_end=target,
+            predicted_income=pred_income,
+            predicted_expense=pred_expense,
+            predicted_profit=pred_profit,
+            confidence_note="بر اساس میانگین وزنی ۷ روز اخیر با تعدیل روند کوتاه‌مدت",
+            method="weighted_7d_trend",
+            narrative=narrative,
+        )
+
+    if period == "monthly":
+        incomes = []
+        expenses = []
+        cursor = ref.replace(day=1)
+        for i in range(6):
+            m_start, m_end = _month_bounds(_shift_month(cursor, -i))
+            incomes.append(_sum_tx(db, m_start, m_end, "income"))
+            expenses.append(_sum_tx(db, m_start, m_end, "expense"))
+        weights = list(range(6, 0, -1))
+        w_sum = sum(weights) or 1
+        pred_income = round(sum(v * w for v, w in zip(incomes, weights)) / w_sum, 0)
+        pred_expense = round(sum(v * w for v, w in zip(expenses, weights)) / w_sum, 0)
+        if sum(incomes[3:6]) > 0:
+            trend = (sum(incomes[:3]) / 3) / (sum(incomes[3:6]) / 3)
+            trend = max(0.85, min(1.2, trend))
+            pred_income = round(pred_income * trend, 0)
+            pred_expense = round(pred_expense * min(1.15, max(0.85, (2 - trend * 0.4))), 0)
+        pred_profit = pred_income - pred_expense
+        next_month = _shift_month(cursor, 1)
+        f_start, f_end = _month_bounds(next_month)
+        label = "ماه آینده"
+        narrative = (
+            f"پیش‌بینی {label} ({jalali_month_year(next_month)}): "
+            f"درآمد حدود {format_fa_money(pred_income)}، "
+            f"هزینه حدود {format_fa_money(pred_expense)} و "
+            f"{'سود خالص تقریبی' if pred_profit >= 0 else 'زیان تقریبی'} "
+            f"{format_fa_money(abs(pred_profit))}."
+        )
+        return TomorrowForecast(
+            period_type="monthly",
+            target_label=label,
+            forecast_date=f_start,
+            forecast_start=f_start,
+            forecast_end=f_end,
+            predicted_income=pred_income,
+            predicted_expense=pred_expense,
+            predicted_profit=pred_profit,
+            confidence_note="بر اساس میانگین وزنی ۶ ماه اخیر با تعدیل روند",
+            method="weighted_6m_trend",
+            narrative=narrative,
+        )
+
+    incomes = []
+    expenses = []
+    for i in range(3):
+        y = ref.year - i
+        y_start, y_end = date(y, 1, 1), date(y, 12, 31)
+        incomes.append(_sum_tx(db, y_start, y_end, "income"))
+        expenses.append(_sum_tx(db, y_start, y_end, "expense"))
+    trailing_start = ref - timedelta(days=365)
+    trail_income = _sum_tx(db, trailing_start, ref, "income")
+    trail_expense = _sum_tx(db, trailing_start, ref, "expense")
+    if incomes[0] < trail_income * 0.7:
+        incomes[0] = trail_income
+        expenses[0] = trail_expense
+    weights = [3, 2, 1]
+    w_sum = sum(weights[: len(incomes)]) or 1
     pred_income = round(sum(v * w for v, w in zip(incomes, weights)) / w_sum, 0)
     pred_expense = round(sum(v * w for v, w in zip(expenses, weights)) / w_sum, 0)
+    if incomes[1] > 0:
+        trend = max(0.85, min(1.2, incomes[0] / incomes[1]))
+        pred_income = round(pred_income * trend, 0)
+        pred_expense = round(pred_expense * min(1.15, max(0.85, 2 - trend * 0.4)), 0)
     pred_profit = pred_income - pred_expense
-
-    # mild trend nudge from last 3 vs prior 3 days
-    recent_avg = sum(incomes[:3]) / 3 if incomes else 0
-    prior_avg = sum(incomes[3:6]) / 3 if len(incomes) >= 6 else recent_avg
-    if prior_avg > 0:
-        trend_factor = max(0.85, min(1.15, recent_avg / prior_avg))
-        pred_income = round(pred_income * trend_factor, 0)
-        pred_profit = pred_income - pred_expense
-
-    jalali_tomorrow = format_jalali(tomorrow)
-    if pred_profit >= 0:
-        outlook = (
-            f"پیش‌بینی فردا ({jalali_tomorrow}): درآمد حدود {format_fa_money(pred_income)}، "
-            f"هزینه حدود {format_fa_money(pred_expense)} و سود خالص تقریبی {format_fa_money(pred_profit)}. "
-            "روند اخیر از تداوم وضعیت سودآور حمایت می‌کند."
-        )
-    else:
-        outlook = (
-            f"پیش‌بینی فردا ({jalali_tomorrow}): درآمد حدود {format_fa_money(pred_income)}، "
-            f"هزینه حدود {format_fa_money(pred_expense)} و زیان تقریبی {format_fa_money(abs(pred_profit))}. "
-            "توصیه می‌شود هزینه‌های عملیاتی و بهای تمام‌شده کالا کنترل شود."
-        )
-
+    next_year = ref.year + 1
+    f_start, f_end = date(next_year, 1, 1), date(next_year, 12, 31)
+    label = "سال آینده"
+    mid = date(next_year, 6, 15)
+    narrative = (
+        f"پیش‌بینی {label} (سال مالی {jalali_year_label(mid)}): "
+        f"درآمد حدود {format_fa_money(pred_income)}، "
+        f"هزینه حدود {format_fa_money(pred_expense)} و "
+        f"{'سود خالص تقریبی' if pred_profit >= 0 else 'زیان تقریبی'} "
+        f"{format_fa_money(abs(pred_profit))}."
+    )
     return TomorrowForecast(
-        forecast_date=tomorrow,
+        period_type="yearly",
+        target_label=label,
+        forecast_date=f_start,
+        forecast_start=f_start,
+        forecast_end=f_end,
         predicted_income=pred_income,
         predicted_expense=pred_expense,
         predicted_profit=pred_profit,
-        confidence_note="بر اساس میانگین وزنی ۷ روز اخیر با تعدیل روند کوتاه‌مدت",
-        method="weighted_7d_trend",
-        narrative=outlook,
+        confidence_note="بر اساس میانگین وزنی تا ۳ سال اخیر و ۱۲ ماه اخیر با تعدیل روند",
+        method="weighted_3y_trend",
+        narrative=narrative,
     )
+
+
+def predict_tomorrow(db: Session, ref: date | None = None) -> TomorrowForecast:
+    """Backward-compatible alias for daily forecast."""
+    return predict_for_period(db, "daily", ref)
 
 
 def build_dashboard(db: Session, period: PeriodType = "monthly", ref: date | None = None) -> DashboardResponse:
@@ -249,7 +355,7 @@ def build_dashboard(db: Session, period: PeriodType = "monthly", ref: date | Non
     profit = income - expense
     sales_rev, sales_profit = _sales_stats(db, start, end)
     payroll = _payroll_cost(db, start, end)
-    tomorrow = predict_tomorrow(db, ref or date.today())
+    tomorrow = predict_for_period(db, period, ref or date.today())
 
     p_start, p_end = previous_period(start, end)
     prev_income = _sum_tx(db, p_start, p_end, "income")
@@ -286,8 +392,21 @@ def build_dashboard(db: Session, period: PeriodType = "monthly", ref: date | Non
         SummaryCard(label="درآمد فروش", value=sales_rev, tone="positive"),
         SummaryCard(label="سود فروش", value=sales_profit, tone="accent"),
         SummaryCard(label="هزینه حقوق", value=payroll, tone="warning"),
-        SummaryCard(label="پیش‌بینی درآمد فردا", value=tomorrow.predicted_income, tone="positive"),
-        SummaryCard(label="پیش‌بینی سود فردا", value=tomorrow.predicted_profit, tone="accent"),
+        SummaryCard(
+            label=f"پیش‌بینی درآمد {tomorrow.target_label}",
+            value=tomorrow.predicted_income,
+            tone="positive",
+        ),
+        SummaryCard(
+            label=f"پیش‌بینی هزینه {tomorrow.target_label}",
+            value=tomorrow.predicted_expense,
+            tone="warning",
+        ),
+        SummaryCard(
+            label=f"پیش‌بینی سود {tomorrow.target_label}",
+            value=tomorrow.predicted_profit,
+            tone="accent",
+        ),
     ]
 
     return DashboardResponse(
@@ -319,6 +438,7 @@ def build_dashboard(db: Session, period: PeriodType = "monthly", ref: date | Non
             for t in recent
         ],
         tomorrow=tomorrow,
+        forecast=tomorrow,
     )
 
 
@@ -333,7 +453,7 @@ def build_period_report(db: Session, period: PeriodType, ref: date | None = None
     opex = _sum_tx_categories(db, start, end, OPEX_CATEGORIES)
     days = max(1, (end - start).days + 1)
     margin = round((profit / income) * 100, 1) if income else 0.0
-    tomorrow = predict_tomorrow(db, ref or date.today())
+    tomorrow = predict_for_period(db, period, ref or date.today())
 
     if profit >= 0:
         status = "عملکرد مالی در وضعیت مطلوب و سودآور قرار دارد"
@@ -369,6 +489,7 @@ def build_period_report(db: Session, period: PeriodType, ref: date | None = None
         narrative=narrative,
         trend=build_trend(db, period, start, end),
         tomorrow=tomorrow,
+        forecast=tomorrow,
     )
 
 

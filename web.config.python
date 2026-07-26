@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  نسخه پایتون Finlytics برای Plesk Windows
+  قبل از استفاده:
+  1) python_env ساخته شده باشد
+  2) HttpPlatformHandler روی سرور نصب باشد
+  3) processPath را در صورت نیاز به مسیر کامل تغییر دهید
+-->
+<configuration>
+  <system.webServer>
+    <httpErrors errorMode="Detailed" existingResponse="PassThrough" />
+
+    <handlers>
+      <add name="httpPlatformHandler"
+           path="*"
+           verb="*"
+           modules="httpPlatformHandler"
+           resourceType="Unspecified"
+           requireAccess="Script" />
+    </handlers>
+
+    <httpPlatform processPath=".\python_env\Scripts\python.exe"
+                  arguments="-m uvicorn app.main:app --host 127.0.0.1 --port %HTTP_PLATFORM_PORT%"
+                  stdoutLogEnabled="true"
+                  stdoutLogFile=".\logs\stdout.log"
+                  startupTimeLimit="120"
+                  processesPerApplication="1"
+                  forwardWindowsAuthToken="false">
+      <environmentVariables>
+        <environmentVariable name="PYTHONPATH" value="." />
+        <environmentVariable name="PYTHONUTF8" value="1" />
+        <environmentVariable name="PYTHONIOENCODING" value="utf-8" />
+      </environmentVariables>
+    </httpPlatform>
+
+    <staticContent>
+      <remove fileExtension=".json" />
+      <mimeMap fileExtension=".json" mimeType="application/json" />
+      <remove fileExtension=".mp3" />
+      <mimeMap fileExtension=".mp3" mimeType="audio/mpeg" />
+      <remove fileExtension=".xlsx" />
+      <mimeMap fileExtension=".xlsx" mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+    </staticContent>
+
+    <security>
+      <requestFiltering>
+        <requestLimits maxAllowedContentLength="52428800" />
+      </requestFiltering>
+    </security>
+  </system.webServer>
+</configuration>
