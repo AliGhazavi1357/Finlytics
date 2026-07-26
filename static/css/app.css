@@ -472,10 +472,27 @@ th { color: var(--muted); font-weight: 600; }
 .chat-bubble.bot {
   background: rgba(0,0,0,.22);
 }
+.chat-bubble .who-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
 .chat-bubble .who {
   color: var(--muted);
   font-size: .8rem;
-  margin-bottom: 6px;
+}
+.chat-bubble .when {
+  color: var(--muted);
+  font-size: .75rem;
+  white-space: nowrap;
+  opacity: .9;
+}
+.report-dates {
+  margin: -4px 0 12px;
+  font-weight: 600;
 }
 @media (max-width: 860px) {
   .ai-form { grid-template-columns: 1fr; }

@@ -22,12 +22,44 @@ function token() {
   return localStorage.getItem('finlytics_token');
 }
 
+function loginPageUrl() {
+  return location.pathname.includes('.html') ? '/login.html' : '/login';
+}
+
+function appPageUrl() {
+  return location.pathname.includes('.html') ? '/app.html' : '/app';
+}
+
 function ensureAuth() {
   if (!token()) {
-    location.href = '/login';
+    location.href = loginPageUrl();
     return false;
   }
   return true;
+}
+
+/** روی هاست: /api/index.php?path=... | لوکال uvicorn: /api/... */
+let __usePhpApi = null;
+
+async function resolveApiUrl(path) {
+  if (!path.startsWith('/api/')) return path;
+  const rest = path.slice(5);
+  if (__usePhpApi === null) {
+    try {
+      const r = await fetch('/api/index.php?path=version', { cache: 'no-store' });
+      __usePhpApi = r.ok;
+    } catch (_) {
+      __usePhpApi = false;
+    }
+  }
+  if (!__usePhpApi) return path;
+  const qIdx = rest.indexOf('?');
+  if (qIdx === -1) {
+    return '/api/index.php?path=' + encodeURIComponent(rest);
+  }
+  const p = rest.slice(0, qIdx);
+  const qs = rest.slice(qIdx + 1);
+  return '/api/index.php?path=' + encodeURIComponent(p) + '&' + qs;
 }
 
 function toFaDigits(value) {
@@ -76,6 +108,16 @@ function formatCompactFa(v) {
   return formatFaNumber(n);
 }
 
+
+/** ISO date/datetime → Jalali + optional time (Persian digits) */
+function formatDateTimeFa(input) {
+  if (!input) return '';
+  const raw = String(input).trim();
+  const datePart = toJalali(raw);
+  const m = raw.match(/(?:T|\s)(\d{2}):(\d{2})/);
+  if (!m) return datePart;
+  return `${datePart} · ساعت ${toFaDigits(`${m[1]}:${m[2]}`)}`;
+}
 
 /** Gregorian YYYY-MM-DD or Date → Jalali display */
 function toJalali(input) {
@@ -138,6 +180,7 @@ function todayISO() {
 }
 
 async function api(path, options = {}) {
+  const url = await resolveApiUrl(path);
   const headers = Object.assign({}, options.headers || {});
   const isForm = options.body instanceof FormData;
   if (!isForm) {
@@ -145,11 +188,15 @@ async function api(path, options = {}) {
   } else {
     delete headers['Content-Type'];
   }
-  headers['Authorization'] = `Bearer ${token()}`;
-  const res = await fetch(path, { ...options, headers });
+  const t = token();
+  if (t) {
+    headers['Authorization'] = `Bearer ${t}`;
+    headers['X-Auth-Token'] = t;
+  }
+  const res = await fetch(url, { ...options, headers });
   if (res.status === 401) {
     localStorage.clear();
-    location.href = '/login';
+    location.href = loginPageUrl();
     throw new Error('نشست منقضی شده');
   }
   const ct = res.headers.get('content-type') || '';
@@ -162,7 +209,11 @@ async function api(path, options = {}) {
 }
 
 async function setAuthenticatedAudio(url) {
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token()}` } });
+  const resolved = await resolveApiUrl(url);
+  const t = token();
+  const res = await fetch(resolved, {
+    headers: { Authorization: `Bearer ${t}`, 'X-Auth-Token': t },
+  });
   if (!res.ok) throw new Error('دریافت فایل صوتی ناموفق بود');
   const blob = await res.blob();
   const audio = document.getElementById('voiceAudio');
@@ -479,6 +530,17 @@ async function loadDashboard() {
 async function loadReports() {
   const data = await api(`/api/reports/${state.period}`);
   document.getElementById('reportLabel').textContent = data.label;
+  const datesEl = document.getElementById('reportDates');
+  if (datesEl) {
+    if (data.start_date && data.end_date) {
+      const sameDay = data.start_date === data.end_date;
+      datesEl.textContent = sameDay
+        ? `تاریخ گزارش: ${toJalali(data.start_date)}`
+        : `بازه گزارش: از ${toJalali(data.start_date)} تا ${toJalali(data.end_date)}`;
+    } else {
+      datesEl.textContent = '';
+    }
+  }
   document.getElementById('reportNarrative').textContent = toFaDigits(data.narrative);
   const f = data.forecast || data.tomorrow;
   renderForecast('reportForecast', f);
@@ -829,9 +891,13 @@ async function generateVoice() {
   try {
     const data = await api('/api/voice/daily?force=true', { method: 'POST' });
     document.getElementById('voiceScript').textContent = data.script_text;
-    document.getElementById('voiceMeta').textContent =
-      `تاریخ ${toJalali(data.report_date)} | حالت تولید: ${data.generation_mode} | مدت تقریبی: ${data.duration_hint}`;
-    if (data.audio_url) await setAuthenticatedAudio(`${data.audio_url}?t=${Date.now()}`);
+    let meta = `تاریخ ${toJalali(data.report_date)} | حالت تولید: ${data.generation_mode} | مدت تقریبی: ${data.duration_hint}`;
+    if (data.audio_url) {
+      await setAuthenticatedAudio(`${data.audio_url}?t=${Date.now()}`);
+    } else {
+      meta += ' | روی این هاست متن گزارش آماده است (فایل صوتی نیاز به VPS/Python دارد)';
+    }
+    document.getElementById('voiceMeta').textContent = meta;
   } catch (err) {
     document.getElementById('voiceMeta').textContent = err.message;
   } finally {
@@ -865,12 +931,21 @@ function renderAiThread(rows) {
   }
   const ordered = [...rows].reverse();
   thread.innerHTML = ordered
-    .map(
-      (r) => `
-      <div class="chat-bubble user"><div class="who">شما</div>${escapeHtml(toFaDigits(r.question))}</div>
-      <div class="chat-bubble bot"><div class="who">دستیار (${r.mode === 'openai' ? 'AI' : 'خودکار'})</div>${escapeHtml(toFaDigits(r.answer))}</div>
-    `
-    )
+    .map((r) => {
+      const when = formatDateTimeFa(r.created_at);
+      const whenHtml = when
+        ? `<time class="when" datetime="${escapeHtml(r.created_at || '')}">${escapeHtml(when)}</time>`
+        : '';
+      return `
+      <div class="chat-bubble user">
+        <div class="who-row"><div class="who">شما</div>${whenHtml}</div>
+        ${escapeHtml(toFaDigits(r.question))}
+      </div>
+      <div class="chat-bubble bot">
+        <div class="who-row"><div class="who">دستیار (${r.mode === 'openai' ? 'AI' : 'خودکار'})</div>${whenHtml}</div>
+        ${escapeHtml(toFaDigits(r.answer))}
+      </div>`;
+    })
     .join('');
   thread.scrollTop = thread.scrollHeight;
 }
@@ -975,7 +1050,7 @@ function bindUi() {
   document.getElementById('logoutBtn').addEventListener('click', () => {
     localStorage.clear();
     document.cookie = 'access_token=; path=/; max-age=0';
-    location.href = '/login';
+    location.href = loginPageUrl();
   });
 
   document.getElementById('menuBtn').addEventListener('click', () => {
@@ -1006,16 +1081,20 @@ function bindUi() {
   document.getElementById('addSaleBtn')?.addEventListener('click', openSaleModal);
 
   document.getElementById('downloadTemplateBtn').addEventListener('click', async () => {
-    const res = await fetch('/api/excel/template', {
-      headers: { Authorization: `Bearer ${token()}` },
+    const t = token();
+    const url = await resolveApiUrl('/api/excel/template');
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${t}`, 'X-Auth-Token': t },
     });
+    if (!res.ok) throw new Error('دانلود قالب ناموفق بود');
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'finlytics_transactions_template.xlsx';
+    a.href = objectUrl;
+    const cd = res.headers.get('content-disposition') || '';
+    a.download = cd.includes('.csv') ? 'finlytics_transactions_template.csv' : 'finlytics_transactions_template.xlsx';
     a.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(objectUrl);
   });
 
   document.getElementById('uploadExcelBtn').addEventListener('click', async () => {

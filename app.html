@@ -1,13 +1,13 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>{{ app_name }} | پنل مالی</title>
+  <title>Finlytics | پنل مالی</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/app.css?v=5" />
+  <link rel="stylesheet" href="/static/css/app.css?v=7" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -16,7 +16,7 @@
 
   <div class="app-layout">
     <aside class="sidebar" id="sidebar">
-      <div class="side-brand">{{ app_name }}<span>.</span></div>
+      <div class="side-brand">Finlytics<span>.</span></div>
       <nav class="nav-list">
         <a class="nav-item active" data-page="dashboard" href="#dashboard">داشبورد</a>
         <a class="nav-item" data-page="reports" href="#reports">گزارش‌ها</a>
@@ -175,7 +175,7 @@
             ابتدا قالب پیشنهادی را دانلود کنید، سپس فایل تکمیل‌شده را بارگذاری نمایید.
           </p>
           <div class="toolbar">
-            <button class="btn" id="downloadTemplateBtn">دانلود قالب اکسل</button>
+            <button class="btn" id="downloadTemplateBtn">دانلود قالب CSV/اکسل</button>
             <label class="btn btn-ghost" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
               انتخاب فایل
               <input type="file" id="excelFile" accept=".xlsx,.xlsm,.csv" hidden />
@@ -226,3 +226,4 @@
   <script src="/static/js/app.js?v=7"></script>
 </body>
 </html>
+

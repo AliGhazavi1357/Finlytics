@@ -1,0 +1,16 @@
+دسترسی نوشتن برای Finlytics روی Plesk
+=====================================
+
+اگر /api/index.php?path=version خطای 500 داد یا دیتابیس ساخته نشد:
+
+1) در File Manager پوشه data را پیدا کنید (در ریشه سایت)
+2) Change Permissions / Permissions
+3) برای کاربر وب (IUSR / Application pool) گزینه‌های Write و Modify را فعال کنید
+4) زیر /test.php را باز کنید؛ باید حداقل یک مسیر WRITABLE ببینید
+5) سپس /api/index.php?path=version
+
+پوشه‌های جایگزین خودکار:
+- /data
+- /api/data
+- /tmp_data
+- temp سیستم

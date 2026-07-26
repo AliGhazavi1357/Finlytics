@@ -1,19 +1,19 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ app_name }} | ورود</title>
+  <title>Finlytics | ورود</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/css/app.css?v=7" />
 </head>
 <body>
   <div class="auth-shell">
     <section class="auth-visual">
       <div>
-        <h1 class="brand-mark">{{ app_name }}<span>.</span></h1>
+        <h1 class="brand-mark">Finlytics<span>.</span></h1>
         <p>
           سامانه تحلیل و گزارش امور مالی با الهام از تجربه محصول‌های نصف جهان —
           ورودی و خروجی، سودآوری، حقوق پرسنل و گزارش صوتی روزانه برای مدیرعامل.
@@ -56,12 +56,8 @@
       return '/api/auth/login';
     }
 
-    function appTarget() {
-      return location.pathname.includes('.html') ? '/app.html' : '/app';
-    }
-
     if (localStorage.getItem('finlytics_token')) {
-      location.href = appTarget();
+      location.href = '/app.html';
     }
 
     form.addEventListener('submit', async (e) => {
@@ -71,7 +67,8 @@
       try {
         const phone = toEnDigits(document.getElementById('phone').value).trim().replace(/[\s-]/g, '');
         const password = toEnDigits(document.getElementById('password').value);
-        const res = await fetch(await resolveLoginUrl(), {
+        const loginUrl = await resolveLoginUrl();
+        const res = await fetch(loginUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone, password })
@@ -84,7 +81,7 @@
           phone: data.phone
         }));
         document.cookie = `access_token=${data.access_token}; path=/; max-age=${60*60*24*7}; SameSite=Lax`;
-        location.href = appTarget();
+        location.href = '/app.html';
       } catch (err) {
         errorBox.textContent = err.message;
         errorBox.classList.remove('hidden');
