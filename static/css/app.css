@@ -504,7 +504,9 @@ th { color: var(--muted); font-weight: 600; }
   padding: 14px;
   line-height: 2;
   color: #d9ecec;
-  white-space: pre-wrap;
+  text-align: justify;
+  text-justify: inter-word;
+  white-space: pre-line;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -667,3 +669,86 @@ th { color: var(--muted); font-weight: 600; }
   .chip { padding: 7px 11px; font-size: .85rem; }
   table { min-width: 420px; }
 }
+
+/* About + external brand link */
+.side-ext-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: .88rem;
+}
+.side-ext-link:hover { text-decoration: underline; }
+.about-panel h3 { margin-top: 0; }
+.about-panel p {
+  color: var(--muted);
+  line-height: 2;
+  margin: 0 0 12px;
+}
+.about-panel a { color: var(--accent); }
+.about-lead { color: var(--text) !important; font-size: 1.02rem; }
+.about-contacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.about-card {
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  min-width: 0;
+}
+.about-card .label {
+  color: var(--muted);
+  font-size: .8rem;
+  margin-bottom: 6px;
+}
+.about-card a, .about-card span {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+  word-break: break-word;
+}
+.about-card a:hover { color: var(--accent); }
+.user-role {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: .82rem;
+  margin-bottom: 4px;
+}
+.btn-nesfe {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent-2);
+  color: #0c1f33 !important;
+  font-weight: 800;
+  font-size: 1rem;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 18px;
+  text-decoration: none;
+  letter-spacing: 0;
+}
+.btn-nesfe:hover {
+  filter: brightness(1.05);
+  color: #061018 !important;
+}
+@media (max-width: 720px) {
+  .about-contacts { grid-template-columns: 1fr; }
+}
+
+.auth-foot {
+  margin-top: 18px;
+  text-align: center;
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.9;
+}
+.auth-foot a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.auth-foot a:hover { text-decoration: underline; }
+

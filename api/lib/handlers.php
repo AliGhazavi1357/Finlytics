@@ -6,7 +6,7 @@ function handle_version(): void
     json_response([
         'app' => 'Finlytics',
         'api' => 'php',
-        'version' => '1.0.0',
+        'version' => '1.0.3',
         'hosting' => 'shared-plesk',
         'ok' => true,
     ]);
@@ -419,6 +419,7 @@ function ai_quota_for(PDO $pdo, array $user): array
         'limit' => $limit,
         'used' => $used,
         'remaining' => max(0, $limit - $used),
+        'suggestions' => AI_SUGGESTED_QUESTIONS,
     ];
 }
 
@@ -431,7 +432,7 @@ function handle_ai_history(PDO $pdo, array $user): void
 {
     $st = $pdo->prepare(
         'SELECT id, question, answer, mode, created_at FROM ai_questions
-         WHERE user_id = ? ORDER BY id DESC LIMIT 10'
+         WHERE user_id = ? ORDER BY id DESC LIMIT 20'
     );
     $st->execute([$user['id']]);
     $out = [];
@@ -473,22 +474,69 @@ function handle_ai_ask(PDO $pdo, array $user, array $body): void
 
 function handle_voice_daily(PDO $pdo): void
 {
-    $script = fin_voice_script($pdo);
+    $script = flavor_isfahani_ceo_script(fin_voice_script($pdo));
+    $speakable = tts_make_speakable($script);
     $today = today_str();
+    $mode = 'browser-edge-fa';
+    $audioPath = null;
+    $audioUrl = null;
+    $isSample = false;
+    $sampleAudioUrl = '/static/audio/ceo_voice_sample.mp3';
+    $sampleNote = 'توجه: تولید زنده ویس در دسترس نبود؛ این یک فایل صوتی نمونه تولیدشده توسط هوش مصنوعی است.';
+
+    // تلاش ساخت MP3 سمت سرور (ممکن است در هاست بلاک باشد)
+    $fileName = 'ceo_' . $today . '_' . time() . '.mp3';
+    $fullPath = VOICE_DIR . DIRECTORY_SEPARATOR . $fileName;
+    try {
+        $mode = synthesize_persian_voice($script, $fullPath);
+        $audioPath = $fullPath;
+    } catch (Throwable $e) {
+        error_log('Server TTS failed: ' . $e->getMessage());
+        $mode = 'sample-ai-demo';
+        $audioPath = null;
+        $isSample = true;
+    }
+
     $pdo->prepare(
         'INSERT INTO voice_reports (report_date, script_text, audio_path, duration_hint, generation_mode)
-         VALUES (?, ?, NULL, ?, ?)'
-    )->execute([$today, $script, '~60s', 'php-text']);
+         VALUES (?, ?, ?, ?, ?)'
+    )->execute([$today, $script, $audioPath, '~60s', $mode]);
     $id = (int) $pdo->lastInsertId();
+    if ($audioPath && is_file($audioPath)) {
+        $audioUrl = '/api/voice/audio/' . $id;
+        $isSample = false;
+    }
     json_response([
         'id' => $id,
         'report_date' => $today,
         'script_text' => $script,
-        'audio_url' => null,
+        'speakable_text' => $speakable,
+        'audio_url' => $audioUrl,
+        'sample_audio_url' => $sampleAudioUrl,
+        'is_sample' => $isSample,
+        'sample_note' => $sampleNote,
         'duration_hint' => '~60s',
-        'generation_mode' => 'php-text',
+        'generation_mode' => $mode,
+        'voice_hint' => 'fa-IR-DilaraNeural',
         'created_at' => utc_now(),
     ]);
+}
+
+function handle_voice_audio(PDO $pdo, int $reportId): void
+{
+    $st = $pdo->prepare('SELECT * FROM voice_reports WHERE id = ?');
+    $st->execute([$reportId]);
+    $row = $st->fetch();
+    if (!$row || empty($row['audio_path']) || !is_file($row['audio_path'])) {
+        json_error('فایل صوتی یافت نشد', 404);
+    }
+    $path = $row['audio_path'];
+    header('Content-Type: audio/mpeg');
+    header('Content-Length: ' . filesize($path));
+    header('Content-Disposition: inline; filename="ceo_report_' . $reportId . '.mp3"');
+    header('Cache-Control: private, max-age=3600');
+    readfile($path);
+    exit;
 }
 
 function handle_excel_template(): void

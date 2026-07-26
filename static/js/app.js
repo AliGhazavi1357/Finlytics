@@ -9,6 +9,36 @@ const state = {
   products: [],
 };
 
+function isLocalDevHost() {
+  const h = (location.hostname || '').toLowerCase();
+  return (
+    h === 'localhost' ||
+    h === '127.0.0.1' ||
+    h === '::1' ||
+    h === '[::1]' ||
+    h.endsWith('.local')
+  );
+}
+
+function isProductionHost() {
+  const h = (location.hostname || '').toLowerCase();
+  return h === 'finlytics.nesfejahan.com' || h.endsWith('.nesfejahan.com');
+}
+
+/** آنلاین: همیشه HTTPS (برای ویس/WebSocket/crypto ضروری است) */
+function forceHttpsIfNeeded() {
+  if (typeof location === 'undefined') return false;
+  if (location.protocol === 'https:') return false;
+  if (isLocalDevHost()) return false;
+  if (!isProductionHost() && location.hostname === '') return false;
+  const next =
+    'https://' + location.host + location.pathname + location.search + location.hash;
+  location.replace(next);
+  return true;
+}
+
+forceHttpsIfNeeded();
+
 const SOURCE_FA = {
   manual: 'ثبت دستی',
   sales: 'فروش',
@@ -184,7 +214,7 @@ async function api(path, options = {}) {
   const headers = Object.assign({}, options.headers || {});
   const isForm = options.body instanceof FormData;
   if (!isForm) {
-    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json; charset=utf-8';
   } else {
     delete headers['Content-Type'];
   }
@@ -217,7 +247,339 @@ async function setAuthenticatedAudio(url) {
   if (!res.ok) throw new Error('دریافت فایل صوتی ناموفق بود');
   const blob = await res.blob();
   const audio = document.getElementById('voiceAudio');
-  audio.src = URL.createObjectURL(blob);
+  if (audio._objectUrl) URL.revokeObjectURL(audio._objectUrl);
+  audio._objectUrl = URL.createObjectURL(blob);
+  audio.src = audio._objectUrl;
+}
+
+function edgeTtsUuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+async function edgeTtsSecMsGec(trusted) {
+  const ticks = Math.floor(Date.now() / 1000) + 11644473600;
+  const rounded = ticks - (ticks % 300);
+  const windowsTicks = rounded * 10000000;
+  const payload = String(windowsTicks) + trusted;
+  if (globalThis.crypto && crypto.subtle && window.isSecureContext) {
+    const data = new TextEncoder().encode(payload);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+  return sha256Hex(payload).toUpperCase();
+}
+
+/** SHA-256 خالص برای HTTP (بدون crypto.subtle) */
+function sha256Hex(ascii) {
+  function rotr(n, x) {
+    return (x >>> n) | (x << (32 - n));
+  }
+  function toWords(str) {
+    const utf8 = unescape(encodeURIComponent(str));
+    const l = utf8.length;
+    const words = [];
+    for (let i = 0; i < l; i++) words[i >> 2] |= (utf8.charCodeAt(i) & 0xff) << (24 - (i % 4) * 8);
+    return { words, sigBytes: l };
+  }
+  const K = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2,
+  ];
+  const msg = toWords(ascii);
+  const l = msg.sigBytes * 8;
+  msg.words[l >> 5] |= 0x80 << (24 - (l % 32));
+  msg.words[(((l + 64) >> 9) << 4) + 15] = l;
+  let H0 = 0x6a09e667, H1 = 0xbb67ae85, H2 = 0x3c6ef372, H3 = 0xa54ff53a;
+  let H4 = 0x510e527f, H5 = 0x9b05688c, H6 = 0x1f83d9ab, H7 = 0x5be0cd19;
+  const W = new Array(64);
+  for (let i = 0; i < msg.words.length; i += 16) {
+    let a = H0, b = H1, c = H2, d = H3, e = H4, f = H5, g = H6, h = H7;
+    for (let j = 0; j < 64; j++) {
+      if (j < 16) W[j] = msg.words[i + j] | 0;
+      else {
+        const g0 = W[j - 15];
+        const s0 = rotr(7, g0) ^ rotr(18, g0) ^ (g0 >>> 3);
+        const g1 = W[j - 2];
+        const s1 = rotr(17, g1) ^ rotr(19, g1) ^ (g1 >>> 10);
+        W[j] = (((s1 + W[j - 7]) | 0) + ((s0 + W[j - 16]) | 0)) | 0;
+      }
+      const S1 = rotr(6, e) ^ rotr(11, e) ^ rotr(25, e);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (((((h + S1) | 0) + ch) | 0) + K[j] + W[j]) | 0;
+      const S0 = rotr(2, a) ^ rotr(13, a) ^ rotr(22, a);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H0 = (H0 + a) | 0; H1 = (H1 + b) | 0; H2 = (H2 + c) | 0; H3 = (H3 + d) | 0;
+    H4 = (H4 + e) | 0; H5 = (H5 + f) | 0; H6 = (H6 + g) | 0; H7 = (H7 + h) | 0;
+  }
+  function hex(n) {
+    return ('00000000' + (n >>> 0).toString(16)).slice(-8);
+  }
+  return hex(H0) + hex(H1) + hex(H2) + hex(H3) + hex(H4) + hex(H5) + hex(H6) + hex(H7);
+}
+
+function splitSpeakableChunks(text, maxLen = 420) {
+  const parts = String(text || '')
+    .split(/(?<=[.!؟،])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const chunks = [];
+  let buf = '';
+  for (const part of parts) {
+    if (!buf) {
+      buf = part;
+      continue;
+    }
+    if ((buf + ' ' + part).length <= maxLen) buf += ' ' + part;
+    else {
+      chunks.push(buf);
+      buf = part;
+    }
+  }
+  if (buf) chunks.push(buf);
+  const final = [];
+  for (const c of chunks.length ? chunks : [String(text || '')]) {
+    for (let i = 0; i < c.length; i += maxLen) final.push(c.slice(i, i + maxLen));
+  }
+  return final.filter(Boolean);
+}
+
+const EDGE_TTS_GEC_VERSION = '1-143.0.3650.75';
+
+function findBinaryMarker(buf, ascii) {
+  const marker = new TextEncoder().encode(ascii);
+  outer: for (let i = 0; i <= buf.length - marker.length; i++) {
+    for (let j = 0; j < marker.length; j++) {
+      if (buf[i + j] !== marker[j]) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
+function extractEdgeAudioBytes(buf) {
+  let idx = findBinaryMarker(buf, 'Path:audio\r\n\r\n');
+  if (idx >= 0) return buf.slice(idx + 14); // len('Path:audio\r\n\r\n') === 14
+  idx = findBinaryMarker(buf, 'Path:audio\r\n');
+  if (idx >= 0) {
+    const rest = buf.slice(idx + 12);
+    const blank = findBinaryMarker(rest, '\r\n\r\n');
+    if (blank >= 0) return rest.slice(blank + 4);
+    return rest;
+  }
+  if (buf.length > 100 && buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0) return buf;
+  return null;
+}
+
+function synthesizeEdgeChunk(text, voice = 'fa-IR-DilaraNeural') {
+  return new Promise(async (resolve, reject) => {
+    const TRUSTED = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+    const connId = edgeTtsUuid();
+    let sec;
+    try {
+      sec = await edgeTtsSecMsGec(TRUSTED);
+    } catch (e) {
+      reject(e);
+      return;
+    }
+    const url =
+      'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1' +
+      `?TrustedClientToken=${TRUSTED}&ConnectionId=${connId}` +
+      `&Sec-MS-GEC=${sec}&Sec-MS-GEC-Version=${encodeURIComponent(EDGE_TTS_GEC_VERSION)}`;
+
+    let ws;
+    try {
+      // پروتکل synthesize برای Edge TTS الزامی است
+      ws = new WebSocket(url, ['synthesize']);
+    } catch (e) {
+      reject(new Error('WebSocket در این مرورگر پشتیبانی نمی‌شود'));
+      return;
+    }
+    ws.binaryType = 'arraybuffer';
+    const parts = [];
+    let settled = false;
+    const finish = (ok, err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { ws.close(); } catch (_) {}
+      if (ok) resolve(new Blob(parts, { type: 'audio/mpeg' }));
+      else reject(err || new Error('اتصال صوت Edge ناموفق بود'));
+    };
+    const timer = setTimeout(() => {
+      if (parts.length) finish(true);
+      else finish(false, new Error('زمان ساخت صوت به پایان رسید'));
+    }, 50000);
+
+    ws.onopen = () => {
+      const cfg = {
+        context: {
+          synthesis: {
+            audio: {
+              metadataoptions: { sentenceBoundaryEnabled: 'false', wordBoundaryEnabled: 'false' },
+              outputFormat: 'audio-24khz-48kbitrate-mono-mp3',
+            },
+          },
+        },
+      };
+      ws.send(
+        `X-Timestamp:${new Date().toUTCString()}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n${JSON.stringify(cfg)}`
+      );
+      const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      const ssml =
+        `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="fa-IR">` +
+        `<voice name="${voice}"><prosody rate="-5%">${escaped}</prosody></voice></speak>`;
+      ws.send(
+        `X-RequestId:${connId}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${new Date().toUTCString()}\r\nPath:ssml\r\n\r\n${ssml}`
+      );
+    };
+
+    ws.onmessage = (ev) => {
+      if (typeof ev.data === 'string') {
+        if (ev.data.includes('Path:turn.end')) {
+          if (parts.length) finish(true);
+          else finish(false, new Error('خروجی صوتی خالی بود'));
+        }
+        return;
+      }
+      const slice = extractEdgeAudioBytes(new Uint8Array(ev.data));
+      if (slice && slice.length) parts.push(slice);
+    };
+    ws.onerror = () => {
+      const hint =
+        location.protocol !== 'https:' && !isLocalDevHost()
+          ? ' — صفحه را با https باز کنید'
+          : ' — اتصال به سرویس مایکروسافت برقرار نشد';
+      finish(false, new Error('اتصال صوت Edge ناموفق بود' + hint));
+    };
+    ws.onclose = () => {
+      if (!settled) {
+        if (parts.length) finish(true);
+        else finish(false, new Error('اتصال صوت قطع شد'));
+      }
+    };
+  });
+}
+
+async function synthesizePersianBrowserAudio(speakableText) {
+  const chunks = splitSpeakableChunks(speakableText, 380);
+  const blobs = [];
+  let lastErr = null;
+  for (const chunk of chunks) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      blobs.push(await synthesizeEdgeChunk(chunk, 'fa-IR-DilaraNeural'));
+    } catch (e1) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        blobs.push(await synthesizeEdgeChunk(chunk, 'fa-IR-FaridNeural'));
+      } catch (e2) {
+        lastErr = e2;
+        break;
+      }
+    }
+  }
+  if (!blobs.length) throw lastErr || new Error('ساخت صوت ناموفق بود');
+  return new Blob(blobs, { type: 'audio/mpeg' });
+}
+
+function googleTtsChunkUrl(text) {
+  return (
+    'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fa&q=' +
+    encodeURIComponent(text)
+  );
+}
+
+/** پخش تکه‌ای گوگل در همان <audio> — وقتی Edge در دسترس نیست */
+function playGoogleFaInPlayer(speakable) {
+  return new Promise((resolve, reject) => {
+    const audio = document.getElementById('voiceAudio');
+    if (!audio) {
+      reject(new Error('پلیر صوت پیدا نشد'));
+      return;
+    }
+    const chunks = splitSpeakableChunks(speakable, 160);
+    if (!chunks.length) {
+      reject(new Error('متن خالی است'));
+      return;
+    }
+    let i = 0;
+    const playNext = () => {
+      if (i >= chunks.length) {
+        resolve({ chunks: chunks.length });
+        return;
+      }
+      const url = googleTtsChunkUrl(chunks[i]);
+      i += 1;
+      const onEnd = () => {
+        cleanup();
+        playNext();
+      };
+      const onErr = () => {
+        cleanup();
+        reject(new Error('پخش گوگل TTS ناموفق بود (ممکن است از شبکه مسدود باشد)'));
+      };
+      const cleanup = () => {
+        audio.removeEventListener('ended', onEnd);
+        audio.removeEventListener('error', onErr);
+      };
+      audio.addEventListener('ended', onEnd);
+      audio.addEventListener('error', onErr);
+      if (audio._objectUrl) {
+        URL.revokeObjectURL(audio._objectUrl);
+        audio._objectUrl = null;
+      }
+      audio.src = url;
+      audio.play().catch(onErr);
+    };
+    playNext();
+  });
+}
+
+function playSpeakableWithBrowser(speakable) {
+  return new Promise((resolve, reject) => {
+    if (!window.speechSynthesis) {
+      reject(new Error('مرورگر از گفتار پشتیبانی نمی‌کند'));
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(speakable);
+    utter.lang = 'fa-IR';
+    utter.rate = 0.92;
+    const pick = () => {
+      const voices = window.speechSynthesis.getVoices() || [];
+      const fa =
+        voices.find((v) => /fa(-|_|$)|Persian|Iran/i.test(`${v.lang} ${v.name}`)) ||
+        voices.find((v) => /female|woman|zira|dilara/i.test(v.name));
+      if (fa) utter.voice = fa;
+    };
+    pick();
+    if (!utter.voice) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        pick();
+      };
+    }
+    utter.onend = () => resolve();
+    utter.onerror = (e) => reject(e.error || new Error('پخش گفتار ناموفق بود'));
+    window.speechSynthesis.speak(utter);
+  });
 }
 
 function closeMenu() {
@@ -325,6 +687,7 @@ function setPage(page) {
     excel: ['ورود اطلاعات از اکسل', 'قالب پیشنهادی Finlytics'],
     voice: ['ویس گزارش مدیرعامل', 'گزارش عملکردی روزانه فارسی + پیش‌بینی فردا'],
     ai: ['پرسش‌وپاسخ هوش مصنوعی', 'سقف محدود سؤال روزانه درباره وضعیت مالی'],
+    about: ['درباره ما', 'نصف جهان — تماس و معرفی'],
   };
   const [t, m] = titles[page] || ['پنل', ''];
   document.getElementById('pageTitle').textContent = t;
@@ -884,22 +1247,99 @@ async function loadEmployees() {
   });
 }
 
+const VOICE_SAMPLE_URL = '/static/audio/ceo_voice_sample.mp3';
+const VOICE_SAMPLE_NOTE =
+  'توجه: تولید زنده ویس در دسترس نبود؛ این یک فایل صوتی نمونه تولیدشده توسط هوش مصنوعی است.';
+
+async function playSampleAiVoice(customNote) {
+  const audio = document.getElementById('voiceAudio');
+  if (!audio) throw new Error('پلیر صوت پیدا نشد');
+  if (audio._objectUrl) {
+    URL.revokeObjectURL(audio._objectUrl);
+    audio._objectUrl = null;
+  }
+  audio.src = `${VOICE_SAMPLE_URL}?v=1`;
+  const note = customNote || VOICE_SAMPLE_NOTE;
+  document.getElementById('voiceMeta').textContent = note;
+  try {
+    await audio.play();
+  } catch (_) {}
+  return note;
+}
+
 async function generateVoice() {
   const btn = document.getElementById('generateVoiceBtn');
+  const audio = document.getElementById('voiceAudio');
   btn.disabled = true;
-  btn.textContent = 'در حال تولید...';
+  btn.textContent = 'در حال تولید صوت فارسی...';
   try {
+    // آنلاین حتماً HTTPS — بدون آن ویس Edge کار نمی‌کند
+    if (forceHttpsIfNeeded()) return;
+    if (location.protocol !== 'https:' && !isLocalDevHost()) {
+      document.getElementById('voiceMeta').textContent =
+        'برای تولید ویس باید سایت را با https باز کنید: https://finlytics.nesfejahan.com/app.html';
+      return;
+    }
+    if (audio) {
+      if (audio._objectUrl) URL.revokeObjectURL(audio._objectUrl);
+      audio.removeAttribute('src');
+      audio.load();
+    }
     const data = await api('/api/voice/daily?force=true', { method: 'POST' });
     document.getElementById('voiceScript').textContent = data.script_text;
-    let meta = `تاریخ ${toJalali(data.report_date)} | حالت تولید: ${data.generation_mode} | مدت تقریبی: ${data.duration_hint}`;
+    const speakable = data.speakable_text || data.script_text;
+    const sampleUrl = data.sample_audio_url || VOICE_SAMPLE_URL;
+    const sampleNote = data.sample_note || VOICE_SAMPLE_NOTE;
+    let meta = `تاریخ ${toJalali(data.report_date)} | حالت: ${data.generation_mode} | مدت تقریبی: ${data.duration_hint}`;
+
+    // اگر سرور فقط نمونه AI برگرداند (تولید زنده ناموفق)
+    if (data.is_sample || data.generation_mode === 'sample-ai-demo') {
+      if (audio._objectUrl) {
+        URL.revokeObjectURL(audio._objectUrl);
+        audio._objectUrl = null;
+      }
+      audio.src = `${sampleUrl}?t=${Date.now()}`;
+      document.getElementById('voiceMeta').textContent = `${meta} | ${sampleNote}`;
+      try { await audio.play(); } catch (_) {}
+      return;
+    }
+
     if (data.audio_url) {
       await setAuthenticatedAudio(`${data.audio_url}?t=${Date.now()}`);
-    } else {
-      meta += ' | روی این هاست متن گزارش آماده است (فایل صوتی نیاز به VPS/Python دارد)';
+      meta += ' | پخش از فایل سرور';
+      document.getElementById('voiceMeta').textContent = meta;
+      try { await audio.play(); } catch (_) {}
+      return;
     }
-    document.getElementById('voiceMeta').textContent = meta;
+
+    btn.textContent = 'در حال ساخت صدای فارسی...';
+    try {
+      const blob = await synthesizePersianBrowserAudio(speakable);
+      if (!blob || blob.size < 200) throw new Error('فایل صوتی خالی بود');
+      if (audio._objectUrl) URL.revokeObjectURL(audio._objectUrl);
+      audio._objectUrl = URL.createObjectURL(blob);
+      audio.src = audio._objectUrl;
+      meta += ' | صدای فارسی عصبی (Dilara) در پلیر آماده است';
+      document.getElementById('voiceMeta').textContent = meta;
+      try { await audio.play(); } catch (_) {}
+    } catch (edgeErr) {
+      meta += ` | Edge ناموفق (${edgeErr.message || edgeErr})`;
+      document.getElementById('voiceMeta').textContent = meta + ' — تلاش با گوگل TTS...';
+      try {
+        await playGoogleFaInPlayer(speakable);
+        document.getElementById('voiceMeta').textContent =
+          meta + ' | پخش پشتیبان فارسی گوگل در پلیر انجام شد';
+      } catch (gErr) {
+        // آخرین پشتیبان: فایل نمونه AI (ceo_report_7)
+        await playSampleAiVoice(`${meta} | ${sampleNote}`);
+      }
+    }
   } catch (err) {
-    document.getElementById('voiceMeta').textContent = err.message;
+    try {
+      await playSampleAiVoice(`${VOICE_SAMPLE_NOTE} (${err.message || err})`);
+    } catch (_) {
+      document.getElementById('voiceMeta').textContent = err.message || String(err);
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = 'تولید ویس گزارش امروز';
@@ -929,8 +1369,8 @@ function renderAiThread(rows) {
       '<div class="hint">هنوز سؤالی نپرسیده‌اید. از پیشنهادها استفاده کنید یا سؤال خود را بنویسید.</div>';
     return;
   }
-  const ordered = [...rows].reverse();
-  thread.innerHTML = ordered
+  // API از قبل جدیدترین را اول می‌فرستد — آخرین سؤال بالای لیست
+  thread.innerHTML = rows
     .map((r) => {
       const when = formatDateTimeFa(r.created_at);
       const whenHtml = when
@@ -947,7 +1387,7 @@ function renderAiThread(rows) {
       </div>`;
     })
     .join('');
-  thread.scrollTop = thread.scrollHeight;
+  thread.scrollTop = 0;
 }
 
 function escapeHtml(text) {
@@ -1017,8 +1457,25 @@ async function submitAiQuestion(question) {
 
 function bindUi() {
   const user = JSON.parse(localStorage.getItem('finlytics_user') || '{}');
-  document.getElementById('userName').textContent = user.full_name || 'کاربر';
-  document.getElementById('userPhone').textContent = toFaDigits(user.phone || '');
+  const nameEl = document.getElementById('userName');
+  const phoneEl = document.getElementById('userPhone');
+  const roleEl = document.getElementById('userRoleLabel');
+  if (roleEl) roleEl.textContent = 'کاربر جاری';
+  nameEl.textContent = user.full_name ? `نام: ${user.full_name}` : 'نام: —';
+  phoneEl.textContent = user.phone ? `شماره: ${toFaDigits(user.phone)}` : 'شماره: —';
+
+  // تازه کردن نام/شماره از API در صورت موجود بودن
+  api('/api/me')
+    .then((me) => {
+      if (!me) return;
+      localStorage.setItem(
+        'finlytics_user',
+        JSON.stringify({ full_name: me.full_name, phone: me.phone })
+      );
+      nameEl.textContent = `نام: ${me.full_name || '—'}`;
+      phoneEl.textContent = `شماره: ${toFaDigits(me.phone || '')}`;
+    })
+    .catch(() => {});
 
   document.querySelectorAll('.nav-item').forEach((el) => {
     el.addEventListener('click', (e) => {

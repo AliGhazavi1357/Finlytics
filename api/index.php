@@ -95,6 +95,8 @@ try {
         handle_excel_import($pdo);
     } elseif ($method === 'POST' && $path === 'voice/daily') {
         handle_voice_daily($pdo);
+    } elseif ($method === 'GET' && preg_match('#^voice/audio/(\d+)$#', $path, $m)) {
+        handle_voice_audio($pdo, (int) $m[1]);
     } elseif ($method === 'GET' && $path === 'ai/quota') {
         handle_ai_quota($pdo, $user);
     } elseif ($method === 'GET' && $path === 'ai/history') {

@@ -162,8 +162,11 @@ SQL);
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/reports.php';
+require __DIR__ . '/edge_tts.php';
+require __DIR__ . '/tts.php';
 require __DIR__ . '/handlers.php';
 require __DIR__ . '/seed.php';
 
 seed_default_user($pdo);
 seed_demo_data($pdo);
+ensure_today_financial_data($pdo);

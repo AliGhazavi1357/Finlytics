@@ -3,11 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Finlytics | پنل مالی</title>
+  <title>Finlytics | پنل تحلیل مالی</title>
+  <meta name="description" content="پنل Finlytics برای مدیریت داشبورد مالی، گزارش‌ها، تراکنش‌ها، فروش، پرسنل، ویس مدیرعامل و دستیار هوشمند — محصول نصف جهان." />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="theme-color" content="#0c1f33" />
+  <link rel="canonical" href="https://finlytics.nesfejahan.com/app.html" />
+  <script>
+    (function () {
+      var h = (location.hostname || '').toLowerCase();
+      if (
+        location.protocol === 'http:' &&
+        (h === 'finlytics.nesfejahan.com' || h.indexOf('.nesfejahan.com', h.length - '.nesfejahan.com'.length) !== -1)
+      ) {
+        location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+      }
+    })();
+  </script>
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/static/img/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png" sizes="180x180" />
+  <link rel="manifest" href="/static/manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/app.css?v=7" />
+  <link rel="stylesheet" href="/static/css/app.css?v=13" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -26,11 +45,14 @@
         <a class="nav-item" data-page="excel" href="#excel">بارگذاری اکسل</a>
         <a class="nav-item" data-page="voice" href="#voice">ویس گزارش مدیرعامل</a>
         <a class="nav-item" data-page="ai" href="#ai">پرسش‌وپاسخ هوش مصنوعی</a>
+        <a class="nav-item" data-page="about" href="#about">درباره ما</a>
       </nav>
       <div class="side-foot">
-        <div id="userName">—</div>
-        <div id="userPhone">—</div>
+        <div class="user-role" id="userRoleLabel">کاربر جاری</div>
+        <div id="userName">نام: —</div>
+        <div id="userPhone">شماره: —</div>
         <div id="limitsHint" class="hint" style="margin-top:8px"></div>
+        <a class="side-ext-link" href="https://nesfejahan.com" target="_blank" rel="noopener noreferrer">وب‌سایت نصف جهان</a>
         <button class="btn btn-ghost" style="margin-top:12px;width:100%" id="logoutBtn">خروج</button>
       </div>
     </aside>
@@ -191,6 +213,10 @@
           <h3>گزارش صوتی روزانه برای مدیرعامل</h3>
           <p style="color:var(--muted);line-height:1.9;margin:0">
             متن فارسی حدود یک دقیقه به‌صورت خودکار از داده‌های روز ساخته می‌شود و پیش‌بینی فردا را هم شامل می‌شود.
+            روی نسخه آنلاین برای ساخت و پخش ویس حتماً از
+            <a href="https://finlytics.nesfejahan.com/app.html#voice" style="color:var(--accent);font-weight:700">https://finlytics.nesfejahan.com</a>
+            استفاده کنید.
+            اگر تولید زنده ویس ممکن نباشد، یک فایل صوتی نمونه تولیدشده توسط هوش مصنوعی پخش می‌شود.
           </p>
           <div class="toolbar">
             <button class="btn btn-accent" id="generateVoiceBtn">تولید ویس گزارش امروز</button>
@@ -219,11 +245,47 @@
           <div class="chat-thread" id="aiThread"></div>
         </div>
       </section>
+
+      <section id="view-about" class="hidden">
+        <div class="panel about-panel">
+          <h3>درباره Finlytics و نصف جهان</h3>
+          <p class="about-lead">
+            Finlytics سامانه تحلیل و گزارش امور مالی است که با الهام از تجربه محصول‌های
+            <a href="https://nesfejahan.com" target="_blank" rel="noopener noreferrer">شرکت تجارت رایانه نصف جهان</a>
+            طراحی شده است؛ برای مدیریت درآمد و هزینه، فروش، حقوق پرسنل و گزارش مدیریتی.
+          </p>
+          <p>
+            شرکت تجارت رایانه نصف جهان بیش از دو دهه در طراحی وب‌سایت، فروشگاه آنلاین،
+            اپلیکیشن، هوش مصنوعی و مشاوره فناوری اطلاعات فعالیت می‌کند و مرکز آن در اصفهان است.
+          </p>
+          <div class="about-contacts">
+            <div class="about-card">
+              <div class="label">تماس</div>
+              <a href="tel:09199900095" dir="ltr">۰۹۱۹۹۹۰۰۰۹۵</a>
+            </div>
+            <div class="about-card">
+              <div class="label">واتس‌اپ</div>
+              <a href="https://wa.me/989199900095" target="_blank" rel="noopener noreferrer" dir="ltr">۰۹۱۹۹۹۰۰۰۹۵</a>
+            </div>
+            <div class="about-card">
+              <div class="label">ایمیل</div>
+              <a href="mailto:info@nesfejahan.com">info@nesfejahan.com</a>
+            </div>
+            <div class="about-card">
+              <div class="label">آدرس</div>
+              <span>ایران، اصفهان، بزرگمهر</span>
+            </div>
+          </div>
+          <div class="toolbar" style="margin-top:18px">
+            <a class="btn btn-nesfe" href="https://nesfejahan.com" target="_blank" rel="noopener noreferrer">ورود به وب‌سایت نصف جهان</a>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
   <div id="modalRoot" class="hidden"></div>
-  <script src="/static/js/app.js?v=7"></script>
+  <script src="/static/js/app.js?v=16"></script>
 </body>
 </html>
 

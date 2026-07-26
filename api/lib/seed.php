@@ -139,3 +139,62 @@ function seed_demo_data(PDO $pdo): void
         }
     }
 }
+
+/**
+ * اگر برای امروز داده مالی نباشد، چند تراکنش/فروش تصادفی می‌سازد.
+ * روی دیتابیس قبلی هم هر روز اجرا می‌شود.
+ */
+function ensure_today_financial_data(PDO $pdo): void
+{
+    $today = today_str();
+    $st = $pdo->prepare('SELECT COUNT(*) FROM transactions WHERE txn_date = ?');
+    $st->execute([$today]);
+    if ((int) $st->fetchColumn() > 0) {
+        return;
+    }
+
+    $items = $pdo->query('SELECT * FROM products_services WHERE is_active = 1')->fetchAll();
+    if (!$items) {
+        return;
+    }
+
+    $seed = (int) str_replace('-', '', $today);
+    $pseudo = function () use (&$seed) {
+        $seed = (1103515245 * $seed + 12345) & 0x7fffffff;
+        return $seed / 0x7fffffff;
+    };
+
+    $insSale = $pdo->prepare(
+        'INSERT INTO sales (item_id, sale_date, quantity, unit_price, unit_cost, revenue, cost, profit, channel)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $insTx = $pdo->prepare(
+        'INSERT INTO transactions (txn_date, direction, category, title, amount, source, reference)
+         VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    foreach ($items as $item) {
+        $qty = $item['kind'] === 'product'
+            ? [1, 1, 2, 2, 3][(int) floor($pseudo() * 5)]
+            : [1, 1, 1, 2][(int) floor($pseudo() * 4)];
+        $price = (float) $item['unit_price'] * (0.96 + $pseudo() * 0.1);
+        $cost = (float) $item['unit_cost'] * (0.97 + $pseudo() * 0.06);
+        $revenue = round($qty * $price);
+        $totalCost = round($qty * $cost);
+        $insSale->execute([
+            $item['id'], $today, $qty, round($price), round($cost), $revenue, $totalCost, $revenue - $totalCost,
+            'فروش مستقیم',
+        ]);
+        $cat = $item['kind'] === 'product' ? 'فروش محصول' : 'ارائه خدمت';
+        $insTx->execute([$today, 'income', $cat, 'فروش ' . $item['name'], $revenue, 'sales', $item['code']]);
+        $insTx->execute([$today, 'expense', 'بهای تمام‌شده کالا', 'هزینه ' . $item['name'], $totalCost, 'cogs', $item['code']]);
+    }
+
+    $ops = [
+        ['بازاریابی', 3500000 + (int) floor($pseudo() * 2000000)],
+        ['لوازم مصرفی', 900000 + (int) floor($pseudo() * 800000)],
+        ['حمل‌ونقل', 1500000 + (int) floor($pseudo() * 1000000)],
+    ];
+    $pick = $ops[(int) floor($pseudo() * count($ops))];
+    $insTx->execute([$today, 'expense', $pick[0], $pick[0] . ' روز جاری', $pick[1], 'ops', null]);
+}

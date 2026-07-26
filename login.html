@@ -3,11 +3,86 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Finlytics | ورود</title>
+  <title>Finlytics | سامانه تحلیل مالی نصف جهان</title>
+  <meta name="description" content="Finlytics سامانه تحلیل و گزارش امور مالی محصول شرکت تجارت رایانه نصف جهان: داشبورد، درآمد و هزینه، فروش، حقوق پرسنل، گزارش صوتی مدیرعامل و دستیار هوشمند." />
+  <meta name="keywords" content="Finlytics, تحلیل مالی, نرم افزار مالی, نصف جهان, nesfejahan, داشبورد مالی, گزارش مدیریتی, اصفهان" />
+  <meta name="author" content="شرکت تجارت رایانه نصف جهان" />
+  <meta name="robots" content="index,follow,max-image-preview:large" />
+  <meta name="theme-color" content="#0c1f33" />
+  <meta name="application-name" content="Finlytics" />
+  <link rel="canonical" href="https://finlytics.nesfejahan.com/" />
+  <link rel="alternate" hreflang="fa-IR" href="https://finlytics.nesfejahan.com/" />
+  <link rel="alternate" hreflang="x-default" href="https://finlytics.nesfejahan.com/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="fa_IR" />
+  <meta property="og:site_name" content="Finlytics" />
+  <meta property="og:title" content="Finlytics | سامانه تحلیل مالی نصف جهان" />
+  <meta property="og:description" content="داشبورد مالی، گزارش دوره‌ای، ویس مدیرعامل و دستیار هوشمند — محصول نصف جهان." />
+  <meta property="og:url" content="https://finlytics.nesfejahan.com/" />
+  <meta property="og:image" content="https://finlytics.nesfejahan.com/static/img/og-cover.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Finlytics | سامانه تحلیل مالی نصف جهان" />
+  <meta name="twitter:description" content="سامانه تحلیل و گزارش امور مالی محصول شرکت تجارت رایانه نصف جهان." />
+  <meta name="twitter:image" content="https://finlytics.nesfejahan.com/static/img/og-cover.png" />
+
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/static/img/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png" sizes="180x180" />
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/app.css?v=7" />
+  <link rel="stylesheet" href="/static/css/app.css?v=9" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://nesfejahan.com/#organization",
+        "name": "شرکت تجارت رایانه نصف جهان",
+        "url": "https://nesfejahan.com",
+        "email": "info@nesfejahan.com",
+        "telephone": "+989199900095",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "اصفهان",
+          "addressRegion": "اصفهان",
+          "addressCountry": "IR",
+          "streetAddress": "بزرگمهر"
+        }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "Finlytics",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "url": "https://finlytics.nesfejahan.com/",
+        "description": "سامانه تحلیل و گزارش امور مالی با داشبورد، گزارش دوره‌ای، ویس مدیرعامل و دستیار هوشمند.",
+        "inLanguage": "fa-IR",
+        "publisher": { "@id": "https://nesfejahan.com/#organization" },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "IRR"
+        }
+      },
+      {
+        "@type": "WebSite",
+        "name": "Finlytics",
+        "url": "https://finlytics.nesfejahan.com/",
+        "inLanguage": "fa-IR",
+        "publisher": { "@id": "https://nesfejahan.com/#organization" }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <div class="auth-shell">
@@ -34,10 +109,24 @@
           <input id="password" name="password" type="password" value="" autocomplete="current-password" placeholder="رمز عبور" required />
         </div>
         <button class="btn btn-block" type="submit" id="loginBtn">ورود</button>
+        <div class="auth-foot">
+          محصول
+          <a href="https://nesfejahan.com" target="_blank" rel="noopener noreferrer">شرکت تجارت رایانه نصف جهان</a>
+          <br />
+          تماس: <a href="tel:09199900095" dir="ltr">۰۹۱۹۹۹۰۰۰۹۵</a>
+        </div>
       </form>
     </section>
   </div>
   <script>
+    if (
+      location.protocol === 'http:' &&
+      location.hostname !== 'localhost' &&
+      location.hostname !== '127.0.0.1' &&
+      location.hostname !== '[::1]'
+    ) {
+      location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+    }
     const form = document.getElementById('loginForm');
     const errorBox = document.getElementById('errorBox');
     const loginBtn = document.getElementById('loginBtn');
@@ -70,7 +159,7 @@
         const loginUrl = await resolveLoginUrl();
         const res = await fetch(loginUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify({ phone, password })
         });
         const data = await res.json();

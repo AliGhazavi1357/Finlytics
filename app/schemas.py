@@ -238,9 +238,14 @@ class VoiceReportOut(BaseModel):
     report_date: date
     script_text: str
     audio_url: Optional[str] = None
+    sample_audio_url: Optional[str] = "/static/audio/ceo_voice_sample.mp3"
+    is_sample: bool = False
+    sample_note: Optional[str] = None
     duration_hint: str
     generation_mode: str
     created_at: datetime
+    speakable_text: Optional[str] = None
+    voice_hint: Optional[str] = None
 
 
 class ImportResult(BaseModel):

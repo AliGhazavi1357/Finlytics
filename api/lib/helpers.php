@@ -4,7 +4,30 @@ declare(strict_types=1);
 const MAX_MONTHLY_SALARY = 200000000.0;
 const MIN_MONTHLY_SALARY = 5000000.0;
 const MAX_TRANSACTION_AMOUNT = 5000000000.0;
-const AI_DAILY_QUESTION_LIMIT = 5;
+const AI_DAILY_QUESTION_LIMIT = 10;
+
+const AI_SUGGESTED_QUESTIONS = [
+    'سود امروز چقدر است؟',
+    'وضعیت مالی ماه جاری چگونه است؟',
+    'بیشترین هزینه مربوط به چیست؟',
+    'پیش‌بینی فردا برای درآمد و هزینه چیست؟',
+    'پیش‌بینی ماه آینده چیست؟',
+];
+
+// سازگاری با PHP 7.4 هاست اشتراکی
+if (!function_exists('str_contains')) {
+    function str_contains($haystack, $needle)
+    {
+        return $needle === '' || strpos((string) $haystack, (string) $needle) !== false;
+    }
+}
+if (!function_exists('str_starts_with')) {
+    function str_starts_with($haystack, $needle)
+    {
+        $needle = (string) $needle;
+        return $needle === '' || strpos((string) $haystack, $needle) === 0;
+    }
+}
 
 function json_response($data, int $status = 200): void
 {

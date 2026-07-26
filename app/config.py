@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     max_monthly_salary: float = 200_000_000
     min_monthly_salary: float = 5_000_000
     max_transaction_amount: float = 5_000_000_000
-    ai_daily_question_limit: int = 5
+    ai_daily_question_limit: int = 10
 
 
 settings = Settings()

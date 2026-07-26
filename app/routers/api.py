@@ -559,13 +559,22 @@ async def voice_daily(
 ):
     report = await generate_daily_voice_report(db, ref, force=force)
     audio_url = f"/api/voice/audio/{report.id}" if report.audio_path else None
+    is_sample = not bool(audio_url)
+    sample_note = (
+        "توجه: تولید زنده ویس در دسترس نبود؛ این یک فایل صوتی نمونه تولیدشده توسط هوش مصنوعی است."
+        if is_sample
+        else None
+    )
     return VoiceReportOut(
         id=report.id,
         report_date=report.report_date,
         script_text=report.script_text,
         audio_url=audio_url,
+        sample_audio_url="/static/audio/ceo_voice_sample.mp3",
+        is_sample=is_sample,
+        sample_note=sample_note,
         duration_hint=report.duration_hint,
-        generation_mode=report.generation_mode,
+        generation_mode="sample-ai-demo" if is_sample else report.generation_mode,
         created_at=report.created_at,
     )
 

@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /login.html
+Allow: /index.html
+Allow: /static/
+Disallow: /api/
+Disallow: /data/
+Disallow: /app.html
+
+Sitemap: https://finlytics.nesfejahan.com/sitemap.xml

@@ -8,7 +8,7 @@ from app.config import BASE_DIR, settings
 from app.database import Base, SessionLocal, engine
 from app.models import User
 from app.routers.api import api_router
-from app.seed import migrate_legacy_labels, seed_database
+from app.seed import ensure_today_financial_data, migrate_legacy_labels, seed_database
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -19,6 +19,7 @@ def create_app() -> FastAPI:
     try:
         seed_database(db)
         migrate_legacy_labels(db)
+        ensure_today_financial_data(db)
     finally:
         db.close()
 

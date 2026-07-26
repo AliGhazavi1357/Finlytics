@@ -267,6 +267,84 @@ def seed_database(db: Session) -> None:
     db.commit()
 
 
+def ensure_today_financial_data(db: Session) -> None:
+    """If today has no transactions, generate sample sales/expenses for the daily dashboard."""
+    today = date.today()
+    has_today = (
+        db.query(Transaction)
+        .filter(Transaction.txn_date == today)
+        .first()
+        is not None
+    )
+    if has_today:
+        return
+
+    items = db.query(ProductService).filter(ProductService.is_active.is_(True)).all()
+    if not items:
+        return
+
+    rng = random.Random(int(today.strftime("%Y%m%d")))
+    for item in items:
+        qty = rng.choice([1, 1, 2, 2, 3]) if item.kind == "product" else rng.choice([1, 1, 1, 2])
+        price = item.unit_price * rng.uniform(0.96, 1.06)
+        cost = item.unit_cost * rng.uniform(0.97, 1.04)
+        revenue = round(qty * price, 0)
+        total_cost = round(qty * cost, 0)
+        db.add(
+            Sale(
+                item_id=item.id,
+                sale_date=today,
+                quantity=qty,
+                unit_price=round(price, 0),
+                unit_cost=round(cost, 0),
+                revenue=revenue,
+                cost=total_cost,
+                profit=revenue - total_cost,
+                channel="فروش مستقیم",
+            )
+        )
+        db.add(
+            Transaction(
+                txn_date=today,
+                direction="income",
+                category="فروش محصول" if item.kind == "product" else "ارائه خدمت",
+                title=f"فروش {item.name}",
+                amount=revenue,
+                source="sales",
+                reference=item.code,
+            )
+        )
+        db.add(
+            Transaction(
+                txn_date=today,
+                direction="expense",
+                category="بهای تمام‌شده کالا",
+                title=f"هزینه کالای فروخته‌شده — {item.name}",
+                amount=total_cost,
+                source="cogs",
+                reference=item.code,
+            )
+        )
+
+    ops = [
+        ("بازاریابی", "فعالیت بازاریابی روز جاری", rng.randint(2_500_000, 6_000_000)),
+        ("لوازم مصرفی", "خرید ملزومات روز جاری", rng.randint(700_000, 2_200_000)),
+        ("حمل‌ونقل", "هزینه ارسال روز جاری", rng.randint(1_000_000, 3_500_000)),
+    ]
+    cat, title, amount = rng.choice(ops)
+    db.add(
+        Transaction(
+            txn_date=today,
+            direction="expense",
+            category=cat,
+            title=title,
+            amount=amount,
+            source="ops",
+        )
+    )
+    db.commit()
+
+
 def migrate_legacy_labels(db: Session) -> None:
     """Rename legacy English/short categories to clear Persian labels."""
     renames = {
