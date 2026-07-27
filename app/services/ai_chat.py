@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta
 
 import httpx
@@ -265,11 +266,38 @@ async def ask_finance_question(db: Session, user: User, question: str) -> AiQues
     return row
 
 
+def _is_garbled_ai_text(text: str) -> bool:
+    q = (text or "").strip()
+    if not q:
+        return True
+    if re.fullmatch(r"[\?？\s\.,!:;\-_]+", q):
+        return True
+    compact = re.sub(r"\s+", "", q)
+    marks = len(re.findall(r"[\?？]", compact))
+    if compact and marks / len(compact) >= 0.4:
+        return True
+    has_fa = bool(re.search(r"[\u0600-\u06FF]", q))
+    if not has_fa and marks >= 3:
+        return True
+    return False
+
+
 def list_recent_questions(db: Session, user_id: int, limit: int = 10) -> list[AiQuestion]:
-    return (
+    rows = (
         db.query(AiQuestion)
         .filter(AiQuestion.user_id == user_id)
         .order_by(AiQuestion.id.desc())
-        .limit(limit)
+        .limit(limit * 3)
         .all()
     )
+    clean: list[AiQuestion] = []
+    for row in rows:
+        if _is_garbled_ai_text(row.question or ""):
+            db.delete(row)
+            continue
+        clean.append(row)
+        if len(clean) >= limit:
+            break
+    db.commit()
+    return clean
+

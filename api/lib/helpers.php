@@ -69,6 +69,37 @@ function to_fa_digits($value): string
     return str_replace($en, $fa, (string) $value);
 }
 
+/** تشخیص متن خراب‌شده encoding مثل ???? ???? */
+function ai_is_garbled_text(string $text): bool
+{
+    $q = trim($text);
+    if ($q === '') {
+        return true;
+    }
+    // فقط علامت سؤال / فاصله / نقطه‌گذاری
+    if (preg_match('/^[\?？\s\.\,\!\:\;\-\_]+$/u', $q)) {
+        return true;
+    }
+    $compact = preg_replace('/\s+/u', '', $q);
+    $len = max(1, mb_strlen($compact, 'UTF-8'));
+    $marks = 0;
+    $chars = preg_split('//u', $compact, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    foreach ($chars as $ch) {
+        if ($ch === '?' || $ch === '？' || $ch === "\xEF\xBF\xBD") {
+            $marks++;
+        }
+    }
+    if (($marks / $len) >= 0.4) {
+        return true;
+    }
+    // بدون حرف فارسی/عربی ولی پر از ?
+    $hasFa = preg_match('/[\x{0600}-\x{06FF}]/u', $q);
+    if (!$hasFa && $marks >= 3) {
+        return true;
+    }
+    return false;
+}
+
 function format_fa_money($value): string
 {
     $n = (int) round((float) $value);

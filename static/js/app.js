@@ -1364,13 +1364,14 @@ function updateAiQuotaPill(quota) {
 
 function renderAiThread(rows) {
   const thread = document.getElementById('aiThread');
-  if (!rows?.length) {
+  const clean = (rows || []).filter((r) => !isGarbledAiText(r.question));
+  if (!clean.length) {
     thread.innerHTML =
       '<div class="hint">هنوز سؤالی نپرسیده‌اید. از پیشنهادها استفاده کنید یا سؤال خود را بنویسید.</div>';
     return;
   }
   // API از قبل جدیدترین را اول می‌فرستد — آخرین سؤال بالای لیست
-  thread.innerHTML = rows
+  thread.innerHTML = clean
     .map((r) => {
       const when = formatDateTimeFa(r.created_at);
       const whenHtml = when
@@ -1388,6 +1389,18 @@ function renderAiThread(rows) {
     })
     .join('');
   thread.scrollTop = 0;
+}
+
+function isGarbledAiText(text) {
+  const q = String(text || '').trim();
+  if (!q) return true;
+  if (/^[\?？\s.,!:;\-_]+$/u.test(q)) return true;
+  const compact = q.replace(/\s+/g, '');
+  const marks = (compact.match(/[\?？]/g) || []).length;
+  if (compact.length && marks / compact.length >= 0.4) return true;
+  const hasFa = /[\u0600-\u06FF]/.test(q);
+  if (!hasFa && marks >= 3) return true;
+  return false;
 }
 
 function escapeHtml(text) {

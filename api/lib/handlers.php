@@ -430,6 +430,16 @@ function handle_ai_quota(PDO $pdo, array $user): void
 
 function handle_ai_history(PDO $pdo, array $user): void
 {
+    // پاکسازی رکوردهای خراب encoding (مثل ???? ????)
+    $stAll = $pdo->prepare('SELECT id, question FROM ai_questions WHERE user_id = ?');
+    $stAll->execute([$user['id']]);
+    $del = $pdo->prepare('DELETE FROM ai_questions WHERE id = ?');
+    foreach ($stAll->fetchAll() as $row) {
+        if (ai_is_garbled_text((string) $row['question'])) {
+            $del->execute([(int) $row['id']]);
+        }
+    }
+
     $st = $pdo->prepare(
         'SELECT id, question, answer, mode, created_at FROM ai_questions
          WHERE user_id = ? ORDER BY id DESC LIMIT 20'
@@ -437,6 +447,9 @@ function handle_ai_history(PDO $pdo, array $user): void
     $st->execute([$user['id']]);
     $out = [];
     foreach ($st->fetchAll() as $r) {
+        if (ai_is_garbled_text((string) $r['question'])) {
+            continue;
+        }
         $out[] = [
             'id' => (int) $r['id'],
             'question' => $r['question'],
@@ -453,6 +466,9 @@ function handle_ai_ask(PDO $pdo, array $user, array $body): void
     $question = trim((string) ($body['question'] ?? ''));
     if (mb_strlen($question, 'UTF-8') < 3) {
         json_error('سؤال خیلی کوتاه است', 400);
+    }
+    if (ai_is_garbled_text($question)) {
+        json_error('متن سؤال نامعتبر است؛ لطفاً دوباره به فارسی بنویسید', 400);
     }
     $quota = ai_quota_for($pdo, $user);
     if ($quota['remaining'] <= 0) {
